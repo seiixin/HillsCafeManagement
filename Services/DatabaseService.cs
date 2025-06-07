@@ -6,8 +6,8 @@ namespace HillsCafeManagement.Services
 {
     public class DatabaseService
     {
-        // FIXED: Changed * to _ and fixed string syntax
-        private readonly string _connectionString = "server=127.0.0.1;user=root;password=;database=hillscafe_db;";
+        // FIXED: Changed * to _ and fixed database name syntax
+        private readonly string _connectionString = "server=localhost;user=root;password=;database=hillscafe_db;";
 
         public EmployeeModel? Login(string email, string password)
         {
@@ -23,6 +23,7 @@ namespace HillsCafeManagement.Services
                 cmd.Parameters.AddWithValue("@Password", password);
 
                 using var reader = cmd.ExecuteReader();
+
                 if (reader.Read())
                 {
                     return new EmployeeModel
@@ -37,7 +38,6 @@ namespace HillsCafeManagement.Services
             catch (MySqlException ex)
             {
                 Console.Error.WriteLine($"Database error: {ex.Message}");
-                // You might want to show a user-friendly message here
                 System.Windows.MessageBox.Show($"Database connection error: {ex.Message}", "Error",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
@@ -47,6 +47,7 @@ namespace HillsCafeManagement.Services
                 System.Windows.MessageBox.Show($"An unexpected error occurred: {ex.Message}", "Error",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
+
             return null;
         }
     }

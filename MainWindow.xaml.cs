@@ -35,13 +35,20 @@ namespace HillsCafeManagement
             }
         }
 
-        // ADDED: Method to handle email text changes
+        // FIXED: Better email text change handling
         private void EmailTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (sender is TextBox textBox && DataContext is LoginViewModel viewModel)
             {
-                // Only update if it's not the placeholder text
-                viewModel.Email = textBox.Text == EmailPlaceholder ? string.Empty : textBox.Text;
+                // Only update the viewmodel if the text is not the placeholder and we're not in placeholder mode
+                if (textBox.Foreground == InputBrush && textBox.Text != EmailPlaceholder)
+                {
+                    viewModel.Email = textBox.Text;
+                }
+                else if (textBox.Foreground == PlaceholderBrush)
+                {
+                    viewModel.Email = string.Empty;
+                }
             }
         }
 

@@ -88,10 +88,32 @@
                                Visibility="Visible"/>
                 </Grid>
 
+                <!-- Error Message Display -->
+                <TextBlock Text="{Binding ErrorMessage}" 
+                           Foreground="Red" 
+                           FontSize="12"
+                           HorizontalAlignment="Center" 
+                           Margin="0 5"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ErrorMessage}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ErrorMessage}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
                 <CheckBox Content="Remember Me" Margin="0 0 0 10"/>
 
                 <Button Content="LOGIN" Style="{StaticResource PrimaryButton}" Click="LoginButton_Click"/>
-                
+
                 <TextBlock Text="Forgot Password?" Foreground="Gray" FontSize="12"
                            HorizontalAlignment="Center" Cursor="Hand" Margin="0 0 0 10"/>
                 <Button Content="Create Account" Style="{StaticResource SecondaryButton}"/>
