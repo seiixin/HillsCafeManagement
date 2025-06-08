@@ -35,7 +35,7 @@ namespace HillsCafeManagement
             }
         }
 
-        // FIXED: Better email text change handling
+        // email text change handling
         private void EmailTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (sender is TextBox textBox && DataContext is LoginViewModel viewModel)

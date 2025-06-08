@@ -64,7 +64,7 @@
                 <TextBlock Text="LOGIN" FontSize="24" FontWeight="Bold"
                            HorizontalAlignment="Center" Margin="0 0 0 20"/>
 
-                <!-- FIXED: Email TextBox with proper initial state -->
+                <!-- Email TextBox-->
                 <TextBox x:Name="EmailTextBox" 
                          Text="Email"
                          Foreground="Gray"

@@ -14,7 +14,7 @@ namespace HillsCafeManagement.Helpers
             _canExecute = canExecute;
         }
 
-        // FIXED: Changed * to _ for proper member access
+        
         public bool CanExecute(object? parameter) => _canExecute == null || _canExecute(parameter);
 
         public void Execute(object? parameter) => _execute(parameter);

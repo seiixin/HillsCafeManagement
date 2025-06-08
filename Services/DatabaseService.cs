@@ -6,7 +6,7 @@ namespace HillsCafeManagement.Services
 {
     public class DatabaseService
     {
-        // FIXED: Changed * to _ and fixed database name syntax
+        
         private readonly string _connectionString = "server=localhost;user=root;password=;database=hillscafe_db;";
 
         public EmployeeModel? Login(string email, string password)
