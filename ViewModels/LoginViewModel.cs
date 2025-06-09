@@ -5,7 +5,7 @@ using System.Windows.Input;
 using HillsCafeManagement.Helpers;
 using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
-using HillsCafeManagement.Views.Admin;
+using HillsCafeManagement.Views.Layouts;
 
 namespace HillsCafeManagement.ViewModels
 {
@@ -74,8 +74,17 @@ namespace HillsCafeManagement.ViewModels
                 // Login successful
                 ErrorMessage = string.Empty;
 
-                var dashboardWindow = new DashboardWindow();
-                dashboardWindow.Show();
+                var mainLayout= new MainLayout();
+                var window = new Window
+                {
+                    Title = "Dashboard",
+                    Content = new MainLayout(),
+                    Width = 1024,
+                    Height = 768,
+                    WindowStartupLocation = WindowStartupLocation.CenterScreen
+                };
+                window.Show();
+
 
                 // Close the login window if it's passed in as a parameter
                 if (parameter is Window loginWindow)
