@@ -16,7 +16,7 @@ namespace HillsCafeManagement.Services
                 using var connection = new MySqlConnection(_connectionString);
                 connection.Open();
 
-                const string query = "SELECT id, fullname, email, password FROM employees WHERE email = @Email AND password = @Password LIMIT 1;";
+                const string query = "SELECT id, full_name, email, password, position FROM employees WHERE email = @Email AND password = @Password LIMIT 1;";
 
                 using var cmd = new MySqlCommand(query, connection);
                 cmd.Parameters.AddWithValue("@Email", email);
@@ -29,9 +29,10 @@ namespace HillsCafeManagement.Services
                     return new EmployeeModel
                     {
                         Id = reader.GetInt32("id"),
-                        FullName = reader.GetString("fullname"),
+                        FullName = reader.GetString("full_name"),
                         Email = reader.GetString("email"),
-                        Password = reader.GetString("password")
+                        Password = reader.GetString("password"),
+                        Position = reader.IsDBNull(reader.GetOrdinal("position")) ? "" : reader.GetString("position")
                     };
                 }
             }
