@@ -28,7 +28,8 @@
                                 <Setter TargetName="border" Property="Background" Value="#E0E0E0"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#CCCCCC"/>
+                                <Setter TargetName="border" Property="Background" Value="#2A2B40"/>
+                                <Setter Property="Foreground" Value="White"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
@@ -51,18 +52,23 @@ namespace HillsCafeManagement.ViewModels
             var emailInput = Email?.Trim() ?? string.Empty;
             var passwordInput = Password ?? string.Empty;
 
-            var employee = _dbService.Login(emailInput, passwordInput);
+            // Authenticate using email and password
+            var user = _dbService.AuthenticateUser(emailInput, passwordInput);
 
-            if (employee != null)
+            if (user != null)
             {
-                // Extract user role from the Position field in the Employee table
-                string userRole = string.IsNullOrWhiteSpace(employee.Position) ? "EMPLOYEE" : employee.Position.ToUpper();
-                string userName = employee.FullName;
+                string userRole = user.Role;
+                string userName = "System User";
 
-                // Create and configure main layout with SidebarViewModel
+                // Load employee details if linked
+                if (user.Employee != null)
+                {
+                    userName = user.Employee.FullName;
+                }
+
                 var mainLayout = new MainLayout
                 {
-                    DataContext = new SidebarViewModel(userRole, userName)
+                    DataContext = new SidebarViewModel(user)
                 };
 
                 var window = new Window
@@ -80,20 +86,12 @@ namespace HillsCafeManagement.ViewModels
                     loginWindow.Close();
                 }
 
-                Console.WriteLine($"Login attempt: Email = {emailInput}, Password = {passwordInput}");
-                if (employee != null)
-                {
-                    Console.WriteLine($"Login success: Role = {employee.Position}, Name = {employee.FullName}");
-                }
-                else
-                {
-                    Console.WriteLine("Login failed: Invalid credentials.");
-                }
-
+                Console.WriteLine($"Login success: Email = {emailInput}, Role = {userRole}, Name = {userName}");
             }
             else
             {
                 ErrorMessage = "Invalid email or password.";
+                Console.WriteLine("Login failed.");
             }
         }
 

@@ -1,5 +1,4 @@
-﻿// File: ViewModels/SidebarViewModel.cs
-// Admin Views
+﻿using HillsCafeManagement.Models;
 using HillsCafeManagement.Views.Admin.Attendance;
 using HillsCafeManagement.Views.Admin.Dashboard;
 using HillsCafeManagement.Views.Admin.Employees;
@@ -12,13 +11,11 @@ using HillsCafeManagement.Views.Admin.Receipts;
 using HillsCafeManagement.Views.Admin.Sales;
 using HillsCafeManagement.Views.Admin.Tables;
 using HillsCafeManagement.Views.Admin.Users;
-// Cashier Views
 using HillsCafeManagement.Views.Cashier.Inventory;
 using HillsCafeManagement.Views.Cashier.Orders;
 using HillsCafeManagement.Views.Cashier.POS;
 using HillsCafeManagement.Views.Cashier.Receipts;
 using HillsCafeManagement.Views.Cashier.Tables;
-// Employee Views
 using HillsCafeManagement.Views.Employee.Attendance;
 using HillsCafeManagement.Views.Employee.Payslip;
 using HillsCafeManagement.Views.Employee.Profile;
@@ -38,15 +35,16 @@ namespace HillsCafeManagement.ViewModels
         private string _selectedMenuItem;
         private UserControl _currentView;
 
-        public SidebarViewModel(string userRole, string userName)
+        public SidebarViewModel(UserModel user)
         {
-            UserRole = userRole.ToUpper();
-            UserName = userName;
+            UserRole = user.Role.ToUpper();
+            UserName = user.Employee?.FullName ?? user.Email;
             MenuItems = new ObservableCollection<string>();
             NavigateCommand = new RelayCommand<string>(Navigate);
 
             InitializeMenuItems();
         }
+
 
         public string UserRole
         {
@@ -79,16 +77,8 @@ namespace HillsCafeManagement.ViewModels
             get => _currentView;
             set
             {
-                if (value != null)
-                {
-                    _currentView = value;
-                    OnPropertyChanged();
-                }
-                else
-                {
-                    // log error or fallback view
-                    Console.WriteLine("Warning: CurrentView was set to null.");
-                }
+                _currentView = value ?? throw new ArgumentNullException(nameof(CurrentView));
+                OnPropertyChanged();
             }
         }
 
@@ -124,6 +114,10 @@ namespace HillsCafeManagement.ViewModels
                     };
                     CurrentView = new ProfileView();
                     break;
+
+                default:
+                    MessageBox.Show("Unrecognized role: " + UserRole);
+                    break;
             }
         }
 
@@ -131,7 +125,6 @@ namespace HillsCafeManagement.ViewModels
         {
             switch (menuItem?.ToLower())
             {
-                // === ADMIN VIEWS ===
                 case "dashboard":
                     if (UserRole == "ADMIN") CurrentView = new Dashboard();
                     break;
@@ -173,37 +166,28 @@ namespace HillsCafeManagement.ViewModels
                 case "sales & reports":
                     if (UserRole == "ADMIN") CurrentView = new Sales();
                     break;
-
-                // === CASHIER VIEWS ===
                 case "pos":
                     if (UserRole == "CASHIER") CurrentView = new POSView();
                     break;
-
-                // === EMPLOYEE VIEWS ===
                 case "payslip":
                     if (UserRole == "EMPLOYEE") CurrentView = new PayslipView();
                     break;
                 case "profile":
                     if (UserRole == "EMPLOYEE") CurrentView = new ProfileView();
                     break;
-
-                // === SHARED ===
                 case "logout":
-                    // Open a new MainWindow (login screen or landing window)
                     var mainWindow = new MainWindow();
                     mainWindow.Show();
 
-                    // Close the current window
                     foreach (Window window in Application.Current.Windows)
                     {
                         if (window != mainWindow)
                         {
                             window.Close();
-                            break; // Only close the current window, not MainWindow
+                            break;
                         }
                     }
                     break;
-
 
                 default:
                     CurrentView = null;
@@ -218,32 +202,25 @@ namespace HillsCafeManagement.ViewModels
         }
     }
 
-    // Reusable RelayCommand class
     public class RelayCommand<T> : ICommand
     {
-        private readonly System.Action<T> _execute;
-        private readonly System.Func<T, bool> _canExecute;
+        private readonly Action<T> _execute;
+        private readonly Func<T, bool> _canExecute;
 
-        public RelayCommand(System.Action<T> execute, System.Func<T, bool> canExecute = null)
+        public RelayCommand(Action<T> execute, Func<T, bool> canExecute = null)
         {
-            _execute = execute ?? throw new System.ArgumentNullException(nameof(execute));
+            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
             _canExecute = canExecute;
         }
 
-        public bool CanExecute(object parameter)
-        {
-            return _canExecute == null || _canExecute((T)parameter);
-        }
+        public bool CanExecute(object parameter) => _canExecute == null || _canExecute((T)parameter);
 
-        public void Execute(object parameter)
-        {
-            _execute((T)parameter);
-        }
+        public void Execute(object parameter) => _execute((T)parameter);
 
-        public event System.EventHandler CanExecuteChanged
+        public event EventHandler CanExecuteChanged
         {
-            add { CommandManager.RequerySuggested += value; }
-            remove { CommandManager.RequerySuggested -= value; }
+            add => CommandManager.RequerySuggested += value;
+            remove => CommandManager.RequerySuggested -= value;
         }
     }
 }

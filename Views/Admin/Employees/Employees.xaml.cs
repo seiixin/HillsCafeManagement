@@ -1,28 +1,77 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using HillsCafeManagement.Models;
 
 namespace HillsCafeManagement.Views.Admin.Employees
 {
-    /// <summary>
-    /// Interaction logic for Employees.xaml
-    /// </summary>
     public partial class Employees : UserControl
     {
+        private List<EmployeeModel> _allEmployees;
+
         public Employees()
         {
             InitializeComponent();
+            LoadEmployees();
+        }
+
+        private void LoadEmployees()
+        {
+            try
+            {
+                _allEmployees = App.DatabaseServices.GetAllEmployees();
+                EmployeeDataGrid.ItemsSource = _allEmployees;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to load employees.\n\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            string query = SearchBox.Text.ToLower();
+
+            var filtered = string.IsNullOrWhiteSpace(query)
+                ? _allEmployees
+                : _allEmployees.Where(emp =>
+                    (!string.IsNullOrEmpty(emp.FullName) && emp.FullName.ToLower().Contains(query)) ||
+                    (!string.IsNullOrEmpty(emp.Position) && emp.Position.ToLower().Contains(query)) ||
+                    (!string.IsNullOrEmpty(emp.ContactNumber) && emp.ContactNumber.ToLower().Contains(query)) ||
+                    (emp.UserAccount != null && emp.UserAccount.Id.ToString().Contains(query))
+                ).ToList();
+
+            EmployeeDataGrid.ItemsSource = filtered;
+        }
+
+        private void AddEmployee_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("TODO: Add Employee dialog or page.");
+        }
+
+        private void EditEmployee_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.DataContext is EmployeeModel employee)
+            {
+                MessageBox.Show($"TODO: Edit employee: {employee.FullName}");
+            }
+        }
+
+        private void DeleteEmployee_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.DataContext is EmployeeModel employee)
+            {
+                var result = MessageBox.Show($"Are you sure you want to delete {employee.FullName}?",
+                                             "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    // TODO: Delete logic
+                    MessageBox.Show($"Deleted employee: {employee.FullName}");
+                }
+            }
         }
     }
 }

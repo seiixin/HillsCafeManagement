@@ -6,12 +6,12 @@
              mc:Ignorable="d" 
              d:DesignHeight="300" d:DesignWidth="400">
 
-    <Grid Background="White">
+    <Grid Background="#2A2B40">
         <TextBlock Text="This is the Orders Page"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    FontSize="24"
                    FontWeight="Bold"
-                   Foreground="DarkSlateGray"/>
+                   Foreground="White"/>
     </Grid>
 </UserControl>
