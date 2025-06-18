@@ -60,7 +60,7 @@ namespace HillsCafeManagement.ViewModels
                 string userRole = user.Role;
                 string userName = "System User";
 
-                // Load employee details if linked
+                // Load employee details 
                 if (user.Employee != null)
                 {
                     userName = user.Employee.FullName;

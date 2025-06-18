@@ -68,10 +68,25 @@ namespace HillsCafeManagement.Views.Admin.Employees
 
                 if (result == MessageBoxResult.Yes)
                 {
-                    // TODO: Delete logic
-                    MessageBox.Show($"Deleted employee: {employee.FullName}");
+                    try
+                    {
+                        // Call delete method from your data service
+                        App.DatabaseServices.DeleteEmployee(employee.Id);
+
+                        // Remove from local list and refresh grid
+                        _allEmployees.Remove(employee);
+                        EmployeeDataGrid.ItemsSource = null;
+                        EmployeeDataGrid.ItemsSource = _allEmployees;
+
+                        MessageBox.Show($"Deleted employee: {employee.FullName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Failed to delete employee.\n\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
                 }
             }
         }
+
     }
 }

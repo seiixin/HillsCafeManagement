@@ -7,10 +7,8 @@ namespace HillsCafeManagement.Services
 {
     public class DatabaseService
     {
-        // ✅ Make sure only ONE _connectionString is defined
         private readonly string _connectionString = "server=localhost;user=root;password=;database=hillscafe_db;";
 
-        // ✅ Login using EMAIL (correct for your current UserModel)
         public UserModel? AuthenticateUser(string email, string password)
         {
             try
@@ -71,7 +69,6 @@ namespace HillsCafeManagement.Services
             return null;
         }
 
-        // ✅ Gets all users with their linked employee
         public List<UserModel> GetAllUsers()
         {
             var users = new List<UserModel>();
@@ -114,7 +111,6 @@ namespace HillsCafeManagement.Services
             return users;
         }
 
-        // ✅ Delete user by ID
         public bool DeleteUserById(int id)
         {
             using var connection = new MySqlConnection(_connectionString);
@@ -134,14 +130,14 @@ namespace HillsCafeManagement.Services
             connection.Open();
 
             const string query = @"
-        SELECT 
-            e.*, 
-            u.id AS user_id, 
-            u.email, 
-            u.role
-        FROM employees e
-        LEFT JOIN users u ON u.employee_id = e.id
-        ORDER BY e.id DESC";
+                SELECT 
+                    e.*, 
+                    u.id AS user_id, 
+                    u.email, 
+                    u.role
+                FROM employees e
+                LEFT JOIN users u ON u.employee_id = e.id
+                ORDER BY e.id DESC";
 
             using var cmd = new MySqlCommand(query, connection);
             using var reader = cmd.ExecuteReader();
@@ -169,7 +165,6 @@ namespace HillsCafeManagement.Services
                     CreatedAt = reader.GetDateTime("created_at"),
                 };
 
-                // Optional: Load linked user if available
                 if (!reader.IsDBNull(reader.GetOrdinal("user_id")))
                 {
                     employee.UserAccount = new UserModel
@@ -185,6 +180,37 @@ namespace HillsCafeManagement.Services
             }
 
             return employees;
+        }
+
+        // Delete an employee and their linked user account 
+        public bool DeleteEmployee(int employeeId)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            using var transaction = connection.BeginTransaction();
+
+            try
+            {
+                // Delete the linked user if one exists
+                var deleteUserCmd = new MySqlCommand("DELETE FROM users WHERE employee_id = @employeeId", connection, transaction);
+                deleteUserCmd.Parameters.AddWithValue("@employeeId", employeeId);
+                deleteUserCmd.ExecuteNonQuery();
+
+                // Delete the employee
+                var deleteEmployeeCmd = new MySqlCommand("DELETE FROM employees WHERE id = @id", connection, transaction);
+                deleteEmployeeCmd.Parameters.AddWithValue("@id", employeeId);
+                int rowsAffected = deleteEmployeeCmd.ExecuteNonQuery();
+
+                transaction.Commit();
+                return rowsAffected > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error deleting employee: " + ex.Message);
+                transaction.Rollback();
+                return false;
+            }
         }
     }
 }
