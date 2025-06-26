@@ -1,0 +1,18 @@
+﻿// File: Models/PayslipRequestModel.cs
+using System;
+
+namespace HillsCafeManagement.Models
+{
+    public class PayslipRequestModel
+    {
+        public int Id { get; set; }
+        public int EmployeeId { get; set; }
+        public int PayrollId { get; set; }
+        public DateTime RequestDate { get; set; } = DateTime.Now;
+        public string Status { get; set; } = "Pending";
+        public string? Reason { get; set; }
+
+        // For display purposes
+        public string FullName { get; set; } = string.Empty;
+    }
+}

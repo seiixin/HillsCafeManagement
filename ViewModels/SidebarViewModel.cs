@@ -30,21 +30,20 @@ namespace HillsCafeManagement.ViewModels
 {
     public class SidebarViewModel : INotifyPropertyChanged
     {
-        private string _userRole;
-        private string _userName;
-        private string _selectedMenuItem;
-        private UserControl _currentView;
+        private string _userRole = string.Empty;
+        private string _userName = string.Empty;
+        private string _selectedMenuItem = string.Empty;
+        private UserControl _currentView = new Dashboard(); // or null if set in constructor
 
         public SidebarViewModel(UserModel user)
         {
-            UserRole = user.Role.ToUpper();
-            UserName = user.Employee?.FullName ?? user.Email;
+            UserRole = user.Role!.ToUpper(); // tells compiler: “I promise it's not null”
+            UserName = user.Employee?.FullName ?? user.Email!;
             MenuItems = new ObservableCollection<string>();
-            NavigateCommand = new RelayCommand<string>(Navigate);
+            NavigateCommand = new RelayCommand<string?>(Navigate);
 
             InitializeMenuItems();
         }
-
 
         public string UserRole
         {
@@ -65,7 +64,7 @@ namespace HillsCafeManagement.ViewModels
             {
                 _selectedMenuItem = value;
                 OnPropertyChanged();
-                if (!string.IsNullOrEmpty(value))
+                if (!string.IsNullOrWhiteSpace(value))
                 {
                     Navigate(value);
                 }
@@ -82,7 +81,8 @@ namespace HillsCafeManagement.ViewModels
             }
         }
 
-        public ObservableCollection<string> MenuItems { get; set; }
+        public ObservableCollection<string> MenuItems { get; private set; } = new();
+
         public ICommand NavigateCommand { get; }
 
         private void InitializeMenuItems()
@@ -121,7 +121,7 @@ namespace HillsCafeManagement.ViewModels
             }
         }
 
-        public void Navigate(string menuItem)
+        public void Navigate(string? menuItem)
         {
             switch (menuItem?.ToLower())
             {
@@ -141,7 +141,7 @@ namespace HillsCafeManagement.ViewModels
                     if (UserRole == "ADMIN") CurrentView = new Payslip();
                     break;
                 case "attendance":
-                    if (UserRole == "ADMIN") CurrentView = new Attendance();
+                    if (UserRole == "ADMIN") CurrentView = new AttendanceAdminView();
                     else if (UserRole == "EMPLOYEE") CurrentView = new AttendanceView();
                     break;
                 case "menu":
@@ -188,36 +188,32 @@ namespace HillsCafeManagement.ViewModels
                         }
                     }
                     break;
-
-                default:
-                    CurrentView = null;
-                    break;
             }
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
-        {
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
     }
 
     public class RelayCommand<T> : ICommand
     {
-        private readonly Action<T> _execute;
-        private readonly Func<T, bool> _canExecute;
+        private readonly Action<T?> _execute;
+        private readonly Func<T?, bool>? _canExecute;
 
-        public RelayCommand(Action<T> execute, Func<T, bool> canExecute = null)
+        public RelayCommand(Action<T?> execute, Func<T?, bool>? canExecute = null)
         {
             _execute = execute ?? throw new ArgumentNullException(nameof(execute));
             _canExecute = canExecute;
         }
 
-        public bool CanExecute(object parameter) => _canExecute == null || _canExecute((T)parameter);
+        public bool CanExecute(object? parameter) =>
+            _canExecute == null || _canExecute((T?)parameter);
 
-        public void Execute(object parameter) => _execute((T)parameter);
+        public void Execute(object? parameter) =>
+            _execute((T?)parameter);
 
-        public event EventHandler CanExecuteChanged
+        public event EventHandler? CanExecuteChanged
         {
             add => CommandManager.RequerySuggested += value;
             remove => CommandManager.RequerySuggested -= value;

@@ -1,28 +1,34 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using HillsCafeManagement.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace HillsCafeManagement.Views.Admin.Payslip_Requests
 {
-    /// <summary>
-    /// Interaction logic for Payslip.xaml
-    /// </summary>
     public partial class Payslip : UserControl
     {
+        private AdminPayslipViewModel viewModel;
+
         public Payslip()
         {
             InitializeComponent();
+
+            viewModel = new AdminPayslipViewModel();
+            this.DataContext = viewModel;
+
+            Loaded += Payslip_Loaded;
+        }
+
+        private void Payslip_Loaded(object sender, RoutedEventArgs e)
+        {
+            viewModel.LoadPayslipRequestsFromDatabase();
+        }
+
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (viewModel != null && sender is TextBox tb)
+            {
+                viewModel.FilterPayslipRequests(tb.Text);
+            }
         }
     }
 }
