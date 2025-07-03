@@ -212,5 +212,53 @@ namespace HillsCafeManagement.Services
                 return false;
             }
         }
+        public List<MenuModel> GetAllMenuItems()
+        {
+            var menuItems = new List<MenuModel>();
+
+            try
+            {
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
+
+                const string query = @"
+            SELECT 
+                id,
+                name,
+                category,
+                price,
+                image_url,
+                description,
+                created_at
+            FROM menu
+            ORDER BY id DESC";
+
+                using var cmd = new MySqlCommand(query, connection);
+                using var reader = cmd.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    var item = new MenuModel
+                    {
+                        Id = reader.GetInt32("id"),
+                        Name = reader["name"]?.ToString(),
+                        Category = reader["category"]?.ToString(),
+                        Price = reader["price"] as decimal?,
+                        ImageUrl = reader["image_url"]?.ToString(),
+                        Description = reader["description"]?.ToString(),
+                        CreatedAt = reader.GetDateTime("created_at")
+                    };
+
+                    menuItems.Add(item);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error loading menu items: " + ex.Message);
+            }
+
+            return menuItems;
+        }
+
     }
 }
