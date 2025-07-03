@@ -1,5 +1,4 @@
-﻿// File: Models/PayslipRequestModel.cs
-using System;
+﻿using System;
 
 namespace HillsCafeManagement.Models
 {
@@ -12,7 +11,6 @@ namespace HillsCafeManagement.Models
         public string Status { get; set; } = "Pending";
         public string? Reason { get; set; }
 
-        // For display purposes
         public string FullName { get; set; } = string.Empty;
     }
 }

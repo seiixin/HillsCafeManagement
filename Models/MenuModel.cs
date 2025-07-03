@@ -1,5 +1,4 @@
-﻿// File: Models/MenuModel.cs
-using System;
+﻿using System;
 
 namespace HillsCafeManagement.Models
 {

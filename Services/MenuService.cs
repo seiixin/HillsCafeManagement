@@ -1,5 +1,4 @@
-﻿// File: Services/MenuService.cs
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using HillsCafeManagement.Models;
 
 namespace HillsCafeManagement.Services
@@ -8,7 +7,6 @@ namespace HillsCafeManagement.Services
     {
         public List<MenuModel> GetAllMenuItems()
         {
-            // Example static data for testing
             return new List<MenuModel>
             {
                 new MenuModel { Id = 1, Name = "Latte", Category = "Beverage", Price = 120 },

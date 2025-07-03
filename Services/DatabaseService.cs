@@ -259,7 +259,6 @@ namespace HillsCafeManagement.Services
 
             return menuItems;
         }
-
         // INVENTORY
         public List<InventoryItem> GetInventoryItems()
         {
@@ -271,14 +270,17 @@ namespace HillsCafeManagement.Services
                 conn.Open();
 
                 const string query = @"
-            SELECT 
+            SELECT
                 i.id,
                 p.name AS ProductName,
+                c.name AS CategoryName,
                 i.quantity,
                 i.expiry_date
             FROM inventory i
             JOIN products p ON i.product_id = p.id
-            ORDER BY i.id DESC LIMIT 0, 25;";
+            LEFT JOIN categories c ON p.category_id = c.id
+            ORDER BY i.id DESC LIMIT 0, 25;
+        ";
 
                 using var cmd = new MySqlCommand(query, conn);
                 using var reader = cmd.ExecuteReader();
@@ -289,6 +291,7 @@ namespace HillsCafeManagement.Services
                     {
                         Id = reader.GetInt32("id"),
                         ProductName = reader["ProductName"]?.ToString() ?? "",
+                        CategoryName = reader["CategoryName"]?.ToString() ?? "",
                         Quantity = reader.GetInt32("quantity"),
                         ExpiryDate = reader["expiry_date"] != DBNull.Value
                             ? Convert.ToDateTime(reader["expiry_date"])
@@ -305,7 +308,6 @@ namespace HillsCafeManagement.Services
 
             return items;
         }
-
 
 
     }

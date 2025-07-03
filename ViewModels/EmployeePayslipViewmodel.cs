@@ -17,7 +17,7 @@ namespace HillsCafeManagement.ViewModels
         public void LoadPayslipsFromDatabase()
         {
             PayslipService service = new PayslipService();
-            var data = service.GetEmployeePayslips(1); // Replace 1 with actual employee ID
+            var data = service.GetEmployeePayslips(1); 
             _allPayslips = new ObservableCollection<PayslipModel>(data);
             Payslips = new ObservableCollection<PayslipModel>(_allPayslips);
             OnPropertyChanged(nameof(Payslips));

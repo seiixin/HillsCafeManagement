@@ -1,5 +1,4 @@
-﻿// File: ViewModels/PayrollViewModel.cs
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;

@@ -1,5 +1,4 @@
-﻿// File: Models/PayrollModel.cs
-namespace HillsCafeManagement.Models
+﻿namespace HillsCafeManagement.Models
 {
     public class PayrollModel
     {

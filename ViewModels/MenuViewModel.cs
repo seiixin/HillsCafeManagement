@@ -1,5 +1,4 @@
-﻿// File: ViewModels/MenuViewModel.cs
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
 
