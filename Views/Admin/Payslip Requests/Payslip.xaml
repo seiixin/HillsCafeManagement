@@ -35,8 +35,7 @@
                      FontSize="14"
                      Foreground="Black"
                      VerticalContentAlignment="Center"
-                     TextChanged="SearchBox_TextChanged"
-                     />
+                     TextChanged="SearchBox_TextChanged" />
         </Border>
 
         <!-- DataGrid -->
@@ -68,6 +67,38 @@
                 <DataGridTextColumn Header="Full Name" Binding="{Binding FullName}" Width="*" />
                 <DataGridTextColumn Header="Request Date" Binding="{Binding RequestDate}" Width="*" />
                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*" />
+
+                <DataGridTemplateColumn Header="Actions" Width="200">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Button Content="✔ Approve"
+                                        Background="#4CAF50"
+                                        Foreground="White"
+                                        FontSize="12"
+                                        Padding="6,2"
+                                        BorderThickness="0"
+                                        Margin="0,0,4,0"
+                                        Cursor="Hand" />
+                                <Button Content="✖ Deny"
+                                        Background="#F44336"
+                                        Foreground="White"
+                                        FontSize="12"
+                                        Padding="6,2"
+                                        BorderThickness="0"
+                                        Margin="0,0,4,0"
+                                        Cursor="Hand" />
+                                <Button Content="✓ Done"
+                                        Background="#2196F3"
+                                        Foreground="White"
+                                        FontSize="12"
+                                        Padding="6,2"
+                                        BorderThickness="0"
+                                        Cursor="Hand" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

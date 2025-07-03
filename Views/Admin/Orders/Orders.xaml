@@ -86,6 +86,20 @@
             </DataGrid.Resources>
 
             <DataGrid.Columns>
+                <!-- Info Icon column -->
+                <DataGridTemplateColumn Header="Info" Width="50">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="ℹ️"
+                                    ToolTip="View Order Info"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    FontSize="16"
+                                    Cursor="Hand"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
                 <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*" />
                 <DataGridTextColumn Header="Table" Binding="{Binding TableNumber}" Width="*" />
                 <DataGridTextColumn Header="Cashier" Binding="{Binding CashierName}" Width="*" />
