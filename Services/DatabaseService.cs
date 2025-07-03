@@ -260,5 +260,53 @@ namespace HillsCafeManagement.Services
             return menuItems;
         }
 
+        // INVENTORY
+        public List<InventoryItem> GetInventoryItems()
+        {
+            var items = new List<InventoryItem>();
+
+            try
+            {
+                using var conn = new MySqlConnection(_connectionString);
+                conn.Open();
+
+                const string query = @"
+            SELECT 
+                i.id,
+                p.name AS ProductName,
+                i.quantity,
+                i.expiry_date
+            FROM inventory i
+            JOIN products p ON i.product_id = p.id
+            ORDER BY i.id DESC LIMIT 0, 25;";
+
+                using var cmd = new MySqlCommand(query, conn);
+                using var reader = cmd.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    var item = new InventoryItem
+                    {
+                        Id = reader.GetInt32("id"),
+                        ProductName = reader["ProductName"]?.ToString() ?? "",
+                        Quantity = reader.GetInt32("quantity"),
+                        ExpiryDate = reader["expiry_date"] != DBNull.Value
+                            ? Convert.ToDateTime(reader["expiry_date"])
+                            : (DateTime?)null
+                    };
+
+                    items.Add(item);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error loading inventory items: " + ex.Message);
+            }
+
+            return items;
+        }
+
+
+
     }
 }
