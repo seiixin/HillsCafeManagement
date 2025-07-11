@@ -1,17 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+﻿using System.Windows.Controls;
 
 namespace HillsCafeManagement.Views.Admin.Tables
 {
@@ -24,5 +11,18 @@ namespace HillsCafeManagement.Views.Admin.Tables
         {
             InitializeComponent();
         }
+
+        private void DataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
+        }
     }
+
+    public class TableItem
+    {
+        public string TableNumber { get; set; }
+        public string Capacity { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+
 }
