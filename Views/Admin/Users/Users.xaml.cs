@@ -9,7 +9,7 @@ namespace HillsCafeManagement.Views.Admin.Users
 {
     public partial class Users : UserControl
     {
-        private readonly DatabaseService _dbService = new();
+        private readonly UserService _userService = new();
         private List<UserModel> _allUsers = new();
 
         public Users()
@@ -20,7 +20,7 @@ namespace HillsCafeManagement.Views.Admin.Users
 
         private void LoadUsers()
         {
-            _allUsers = _dbService.GetAllUsers();
+            _allUsers = _userService.GetAllUsers();
             UserDataGrid.ItemsSource = _allUsers;
         }
 
@@ -39,16 +39,32 @@ namespace HillsCafeManagement.Views.Admin.Users
 
         private void AddUser_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Open Add User Form here.");
+            var addUserPopup = new AddEditUser();
+
+            addUserPopup.OnUserSaved += () =>
+            {
+                LoadUsers();
+            };
+
+            // add to RootGrid (which we’ll add to XAML below)
+            RootGrid.Children.Add(addUserPopup);
         }
 
         private void EditUser_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.DataContext is UserModel user)
             {
-                MessageBox.Show($"Edit user: {user.Email}");
+                var editUserPopup = new AddEditUser(user); // pass user to edit
+
+                editUserPopup.OnUserSaved += () =>
+                {
+                    LoadUsers(); // refresh list after update
+                };
+
+                RootGrid.Children.Add(editUserPopup);
             }
         }
+
 
         private void DeleteUser_Click(object sender, RoutedEventArgs e)
         {
@@ -57,10 +73,14 @@ namespace HillsCafeManagement.Views.Admin.Users
                 var confirm = MessageBox.Show($"Delete {user.Email}?", "Confirm", MessageBoxButton.YesNo);
                 if (confirm == MessageBoxResult.Yes)
                 {
-                    if (_dbService.DeleteUserById(user.Id))
+                    if (_userService.DeleteUserById(user.Id))
+                    {
                         LoadUsers();
+                    }
                     else
+                    {
                         MessageBox.Show("Failed to delete.");
+                    }
                 }
             }
         }

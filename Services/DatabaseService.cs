@@ -1,5 +1,5 @@
-﻿using MySql.Data.MySqlClient;
-using HillsCafeManagement.Models;
+﻿using HillsCafeManagement.Models;
+using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 
@@ -8,6 +8,8 @@ namespace HillsCafeManagement.Services
     public class DatabaseService
     {
         private readonly string _connectionString = "server=localhost;user=root;password=;database=hillscafe_db;";
+
+        #region Authentication
 
         public UserModel? AuthenticateUser(string email, string password)
         {
@@ -45,17 +47,17 @@ namespace HillsCafeManagement.Services
                         employee = new EmployeeModel
                         {
                             Id = reader.GetInt32("employee_id"),
-                            FullName = reader.IsDBNull(reader.GetOrdinal("full_name")) ? "" : reader.GetString("full_name"),
-                            Position = reader.IsDBNull(reader.GetOrdinal("position")) ? "" : reader.GetString("position")
+                            FullName = reader["full_name"]?.ToString(),
+                            Position = reader["position"]?.ToString()
                         };
                     }
 
                     return new UserModel
                     {
                         Id = reader.GetInt32("user_id"),
-                        Email = reader.GetString("email"),
-                        Password = reader.GetString("password"),
-                        Role = reader.GetString("role"),
+                        Email = reader["email"]?.ToString(),
+                        Password = reader["password"]?.ToString(),
+                        Role = reader["role"]?.ToString(),
                         EmployeeId = reader.IsDBNull(reader.GetOrdinal("employee_id")) ? null : reader.GetInt32("employee_id"),
                         Employee = employee
                     };
@@ -69,135 +71,92 @@ namespace HillsCafeManagement.Services
             return null;
         }
 
-        public List<UserModel> GetAllUsers()
-        {
-            var users = new List<UserModel>();
+        #endregion
 
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
-            const string query = @"
-                SELECT 
-                    u.id,
-                    u.email,
-                    u.password,
-                    u.role,
-                    u.employee_id,
-                    e.full_name
-                FROM users u
-                LEFT JOIN employees e ON u.employee_id = e.id";
-
-            using var cmd = new MySqlCommand(query, connection);
-            using var reader = cmd.ExecuteReader();
-
-            while (reader.Read())
-            {
-                var user = new UserModel
-                {
-                    Id = reader.GetInt32("id"),
-                    Email = reader.GetString("email"),
-                    Password = reader.GetString("password"),
-                    Role = reader.GetString("role"),
-                    EmployeeId = reader.IsDBNull(reader.GetOrdinal("employee_id")) ? null : reader.GetInt32("employee_id"),
-                    Employee = new EmployeeModel
-                    {
-                        FullName = reader.IsDBNull(reader.GetOrdinal("full_name")) ? "" : reader.GetString("full_name")
-                    }
-                };
-
-                users.Add(user);
-            }
-
-            return users;
-        }
-
-        public bool DeleteUserById(int id)
-        {
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
-            using var cmd = new MySqlCommand("DELETE FROM users WHERE id = @id", connection);
-            cmd.Parameters.AddWithValue("@id", id);
-
-            return cmd.ExecuteNonQuery() > 0;
-        }
+        #region Employees
 
         public List<EmployeeModel> GetAllEmployees()
         {
             var employees = new List<EmployeeModel>();
 
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
-            const string query = @"
-                SELECT 
-                    e.*, 
-                    u.id AS user_id, 
-                    u.email, 
-                    u.role
-                FROM employees e
-                LEFT JOIN users u ON u.employee_id = e.id
-                ORDER BY e.id DESC";
-
-            using var cmd = new MySqlCommand(query, connection);
-            using var reader = cmd.ExecuteReader();
-
-            while (reader.Read())
+            try
             {
-                var employee = new EmployeeModel
-                {
-                    Id = reader.GetInt32("id"),
-                    FullName = reader["full_name"]?.ToString(),
-                    Age = reader["age"] as int?,
-                    Sex = reader["sex"]?.ToString(),
-                    Address = reader["address"]?.ToString(),
-                    Birthday = reader["birthday"] as DateTime?,
-                    ContactNumber = reader["contact_number"]?.ToString(),
-                    Position = reader["position"]?.ToString(),
-                    SalaryPerDay = reader["salary_per_day"] as decimal?,
-                    Shift = reader["shift"]?.ToString(),
-                    SssNumber = reader["sss_number"]?.ToString(),
-                    PhilhealthNumber = reader["philhealth_number"]?.ToString(),
-                    PagibigNumber = reader["pagibig_number"]?.ToString(),
-                    ImageUrl = reader["image_url"]?.ToString(),
-                    EmergencyContact = reader["emergency_contact"]?.ToString(),
-                    DateHired = reader["date_hired"] as DateTime?,
-                    CreatedAt = reader.GetDateTime("created_at"),
-                };
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
 
-                if (!reader.IsDBNull(reader.GetOrdinal("user_id")))
+                const string query = @"
+                    SELECT 
+                        e.*, 
+                        u.id AS user_id, 
+                        u.email, 
+                        u.role
+                    FROM employees e
+                    LEFT JOIN users u ON u.employee_id = e.id
+                    ORDER BY e.id DESC";
+
+                using var cmd = new MySqlCommand(query, connection);
+                using var reader = cmd.ExecuteReader();
+
+                while (reader.Read())
                 {
-                    employee.UserAccount = new UserModel
+                    var employee = new EmployeeModel
                     {
-                        Id = reader.GetInt32("user_id"),
-                        Email = reader["email"]?.ToString(),
-                        Role = reader["role"]?.ToString(),
-                        EmployeeId = employee.Id
+                        Id = reader.GetInt32("id"),
+                        FullName = reader["full_name"]?.ToString(),
+                        Age = reader["age"] as int?,
+                        Sex = reader["sex"]?.ToString(),
+                        Address = reader["address"]?.ToString(),
+                        Birthday = reader["birthday"] as DateTime?,
+                        ContactNumber = reader["contact_number"]?.ToString(),
+                        Position = reader["position"]?.ToString(),
+                        SalaryPerDay = reader["salary_per_day"] as decimal?,
+                        Shift = reader["shift"]?.ToString(),
+                        SssNumber = reader["sss_number"]?.ToString(),
+                        PhilhealthNumber = reader["philhealth_number"]?.ToString(),
+                        PagibigNumber = reader["pagibig_number"]?.ToString(),
+                        ImageUrl = reader["image_url"]?.ToString(),
+                        EmergencyContact = reader["emergency_contact"]?.ToString(),
+                        DateHired = reader["date_hired"] as DateTime?,
+                        CreatedAt = reader.GetDateTime("created_at")
                     };
-                }
 
-                employees.Add(employee);
+                    if (!reader.IsDBNull(reader.GetOrdinal("user_id")))
+                    {
+                        employee.UserAccount = new UserModel
+                        {
+                            Id = reader.GetInt32("user_id"),
+                            Email = reader["email"]?.ToString(),
+                            Role = reader["role"]?.ToString(),
+                            EmployeeId = employee.Id
+                        };
+                    }
+
+                    employees.Add(employee);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error loading employees: " + ex.Message);
             }
 
             return employees;
         }
 
-        // Delete an employee and their linked user account 
         public bool DeleteEmployee(int employeeId)
         {
-            using var connection = new MySqlConnection(_connectionString);
-            connection.Open();
-
-            using var transaction = connection.BeginTransaction();
-
             try
             {
-                // Delete the linked user if one exists
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
+
+                using var transaction = connection.BeginTransaction();
+
+                // Delete linked user account
                 var deleteUserCmd = new MySqlCommand("DELETE FROM users WHERE employee_id = @employeeId", connection, transaction);
                 deleteUserCmd.Parameters.AddWithValue("@employeeId", employeeId);
                 deleteUserCmd.ExecuteNonQuery();
 
-                // Delete the employee
+                // Delete employee
                 var deleteEmployeeCmd = new MySqlCommand("DELETE FROM employees WHERE id = @id", connection, transaction);
                 deleteEmployeeCmd.Parameters.AddWithValue("@id", employeeId);
                 int rowsAffected = deleteEmployeeCmd.ExecuteNonQuery();
@@ -208,10 +167,14 @@ namespace HillsCafeManagement.Services
             catch (Exception ex)
             {
                 Console.Error.WriteLine("Error deleting employee: " + ex.Message);
-                transaction.Rollback();
                 return false;
             }
         }
+
+        #endregion
+
+        #region Menu
+
         public List<MenuModel> GetAllMenuItems()
         {
             var menuItems = new List<MenuModel>();
@@ -222,16 +185,16 @@ namespace HillsCafeManagement.Services
                 connection.Open();
 
                 const string query = @"
-            SELECT 
-                id,
-                name,
-                category,
-                price,
-                image_url,
-                description,
-                created_at
-            FROM menu
-            ORDER BY id DESC";
+                    SELECT 
+                        id,
+                        name,
+                        category,
+                        price,
+                        image_url,
+                        description,
+                        created_at
+                    FROM menu
+                    ORDER BY id DESC";
 
                 using var cmd = new MySqlCommand(query, connection);
                 using var reader = cmd.ExecuteReader();
@@ -259,7 +222,11 @@ namespace HillsCafeManagement.Services
 
             return menuItems;
         }
-        // INVENTORY
+
+        #endregion
+
+        #region Inventory
+
         public List<InventoryItem> GetInventoryItems()
         {
             var items = new List<InventoryItem>();
@@ -270,17 +237,16 @@ namespace HillsCafeManagement.Services
                 conn.Open();
 
                 const string query = @"
-            SELECT
-                i.id,
-                p.name AS ProductName,
-                c.name AS CategoryName,
-                i.quantity,
-                i.expiry_date
-            FROM inventory i
-            JOIN products p ON i.product_id = p.id
-            LEFT JOIN categories c ON p.category_id = c.id
-            ORDER BY i.id DESC LIMIT 0, 25;
-        ";
+                    SELECT
+                        i.id,
+                        p.name AS ProductName,
+                        c.name AS CategoryName,
+                        i.quantity,
+                        i.expiry_date
+                    FROM inventory i
+                    JOIN products p ON i.product_id = p.id
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    ORDER BY i.id DESC LIMIT 0, 25;";
 
                 using var cmd = new MySqlCommand(query, conn);
                 using var reader = cmd.ExecuteReader();
@@ -309,6 +275,6 @@ namespace HillsCafeManagement.Services
             return items;
         }
 
-
+        #endregion
     }
 }
