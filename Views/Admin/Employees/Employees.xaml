@@ -3,16 +3,18 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:helpers="clr-namespace:HillsCafeManagement.Helpers"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:av="http://schemas.microsoft.com/expression/blend/2008"
-    mc:Ignorable="av"
-    Background="#2A2B40" av:DesignHeight="309.812" av:DesignWidth="773.23">
+    mc:Ignorable="d"
+    Background="#2A2B40"
+    d:DesignHeight="310"
+    d:DesignWidth="773">
 
     <UserControl.Resources>
         <helpers:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibilityConverter" />
     </UserControl.Resources>
 
-    <Grid Margin="20">
+    <Grid x:Name="RootGrid" Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -93,10 +95,10 @@
 
             <DataGrid.Resources>
                 <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="#6378FF"/>
-                    <Setter Property="Foreground" Value="White"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
-                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                    <Setter Property="Background" Value="#6378FF" />
+                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="FontWeight" Value="Bold" />
+                    <Setter Property="HorizontalContentAlignment" Value="Center" />
                 </Style>
             </DataGrid.Resources>
 

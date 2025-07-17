@@ -9,7 +9,7 @@ namespace HillsCafeManagement.Views.Admin.Users
     public partial class AddEditUser : UserControl
     {
         private readonly UserService _userService = new();
-        private readonly DatabaseService _dbService = new();
+        private readonly EmployeeService _EmployeeService = new();
 
         private readonly bool _isEditMode;
         private readonly UserModel? _editingUser;
@@ -28,7 +28,7 @@ namespace HillsCafeManagement.Views.Admin.Users
             DataContext = this;
 
             // Load employees for linking
-            Employees = _dbService.GetAllEmployees();
+            Employees = _EmployeeService.GetAllEmployees();
             EmployeeComboBox.ItemsSource = Employees;
 
             if (user != null)

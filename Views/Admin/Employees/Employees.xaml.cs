@@ -1,15 +1,18 @@
-﻿using System;
+﻿using HillsCafeManagement.Models;
+using HillsCafeManagement.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using HillsCafeManagement.Models;
 
 namespace HillsCafeManagement.Views.Admin.Employees
 {
     public partial class Employees : UserControl
     {
-        private List<EmployeeModel> _allEmployees;
+        private readonly EmployeeService _employeeService = new();
+
+        private List<EmployeeModel> _allEmployees = new();
 
         public Employees()
         {
@@ -21,7 +24,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
         {
             try
             {
-                _allEmployees = App.DatabaseServices.GetAllEmployees();
+                _allEmployees = _employeeService.GetAllEmployees();
                 EmployeeDataGrid.ItemsSource = _allEmployees;
             }
             catch (Exception ex)
@@ -32,7 +35,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            string query = SearchBox.Text.ToLower();
+            string query = SearchBox.Text.Trim().ToLower();
 
             var filtered = string.IsNullOrWhiteSpace(query)
                 ? _allEmployees
@@ -48,45 +51,60 @@ namespace HillsCafeManagement.Views.Admin.Employees
 
         private void AddEmployee_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("TODO: Add Employee dialog or page.");
+            var addEmployeePopup = new AddEditEmployee();
+
+            addEmployeePopup.OnEmployeeSaved += () =>
+            {
+                LoadEmployees();
+            };
+
+            RootGrid.Children.Add(addEmployeePopup);
         }
 
         private void EditEmployee_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.DataContext is EmployeeModel employee)
+            if (sender is Button btn && btn.DataContext is EmployeeModel employee)
             {
-                MessageBox.Show($"TODO: Edit employee: {employee.FullName}");
+                var editEmployeePopup = new AddEditEmployee(employee);
+
+                editEmployeePopup.OnEmployeeSaved += () =>
+                {
+                    LoadEmployees();
+                };
+
+                RootGrid.Children.Add(editEmployeePopup);
             }
         }
 
         private void DeleteEmployee_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.DataContext is EmployeeModel employee)
+            if (sender is Button btn && btn.DataContext is EmployeeModel employee)
             {
-                var result = MessageBox.Show($"Are you sure you want to delete {employee.FullName}?",
-                                             "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var confirm = MessageBox.Show($"Are you sure you want to delete {employee.FullName}?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
-                if (result == MessageBoxResult.Yes)
+                if (confirm == MessageBoxResult.Yes)
                 {
+                    bool success = false;
                     try
                     {
-                        // Call delete method from your data service
-                        App.DatabaseServices.DeleteEmployee(employee.Id);
-
-                        // Remove from local list and refresh grid
-                        _allEmployees.Remove(employee);
-                        EmployeeDataGrid.ItemsSource = null;
-                        EmployeeDataGrid.ItemsSource = _allEmployees;
-
-                        MessageBox.Show($"Deleted employee: {employee.FullName}");
+                        success = _employeeService.DeleteEmployee(employee.Id);
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show("Failed to delete employee.\n\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show("Error deleting employee:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+
+                    if (success)
+                    {
+                        MessageBox.Show($"Deleted employee: {employee.FullName}");
+                        LoadEmployees();
+                    }
+                    else
+                    {
+                        MessageBox.Show("Failed to delete employee.");
                     }
                 }
             }
         }
-
     }
 }
