@@ -1,100 +1,95 @@
-﻿using System;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
+using System.Linq;
+using System.Windows;
 using System.Windows.Input;
-using MySql.Data.MySqlClient;
 using HillsCafeManagement.Models;
-using HillsCafeManagement.Helpers;
+using HillsCafeManagement.Helpers; // <-- Make sure RelayCommand is in this namespace
 
 namespace HillsCafeManagement.ViewModels
 {
     public class PayrollViewModel : INotifyPropertyChanged
     {
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        private readonly string connectionString = "server=localhost;user=root;password=;database=hillscafe_db;";
-
         public ObservableCollection<PayrollModel> PayrollList { get; set; } = new();
 
-        public ICommand AddPayrollCommand { get; }
-        public ICommand EditCommand { get; }
+        private ObservableCollection<PayrollModel> _allPayrolls = new();
+
         public ICommand DeleteCommand { get; }
-        public ICommand SeeMoreCommand { get; }
 
         public PayrollViewModel()
         {
-            AddPayrollCommand = new RelayCommand(obj => AddPayroll(obj));
-            EditCommand = new RelayCommand(obj => EditPayroll(obj));
-            DeleteCommand = new RelayCommand(obj => DeletePayroll(obj));
-            SeeMoreCommand = new RelayCommand(obj => SeeMore(obj));
-            LoadPayroll();
+            DeleteCommand = new RelayCommand<PayrollModel>(DeletePayroll);
         }
 
-        private void Notify([CallerMemberName] string? propertyName = null) =>
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-
-        public void LoadPayroll()
+        // Load payrolls into the ViewModel
+        public void LoadPayrolls(List<PayrollModel> payrolls)
         {
+            _allPayrolls = new ObservableCollection<PayrollModel>(payrolls);
             PayrollList.Clear();
-
-            using var conn = new MySqlConnection(connectionString);
-            conn.Open();
-
-            var query = @"
-                SELECT 
-                    p.id,
-                    e.id AS employee_id,
-                    e.full_name,
-                    p.start_date,
-                    p.end_date,
-                    p.total_days_worked,
-                    e.salary_per_day,
-                    (e.salary_per_day * p.total_days_worked) AS gross_salary,
-                    p.sss_deduction + p.philhealth_deduction + p.pagibig_deduction + p.other_deductions AS total_deductions,
-                    p.net_salary
-                FROM payroll p
-                JOIN employees e ON p.employee_id = e.id";
-
-            using var cmd = new MySqlCommand(query, conn);
-            using var reader = cmd.ExecuteReader();
-
-            while (reader.Read())
+            foreach (var p in _allPayrolls)
             {
-                PayrollList.Add(new PayrollModel
-                {
-                    Id = reader.GetInt32("id"),
-                    EmployeeId = "E" + reader["employee_id"].ToString()!.PadLeft(3, '0'),
-                    FullName = reader["full_name"].ToString() ?? string.Empty,
-                    PayDate = Convert.ToDateTime(reader["end_date"]).ToString("MM/dd/yy"),
-                    HoursWorked = reader.GetInt32("total_days_worked") * 8,
-                    RatePerHour = Convert.ToDecimal(reader["salary_per_day"]) / 8,
-                    Deductions = Convert.ToDecimal(reader["total_deductions"]),
-                    NetSalary = Convert.ToDecimal(reader["net_salary"])
-                });
+                PayrollList.Add(p);
             }
+            OnPropertyChanged(nameof(PayrollList));
         }
 
+        // Filter payroll list based on search term
         public void FilterPayroll(string filter)
         {
-            LoadPayroll(); // Reload to reset filters first
-
-            var filtered = PayrollList.Where(p =>
-                p.FullName.ToLower().Contains(filter) ||
-                p.EmployeeId.ToLower().Contains(filter)
-            ).ToList();
-
-            PayrollList.Clear();
-            foreach (var item in filtered)
+            if (string.IsNullOrEmpty(filter))
             {
-                PayrollList.Add(item);
+                PayrollList.Clear();
+                foreach (var p in _allPayrolls)
+                {
+                    PayrollList.Add(p);
+                }
             }
+            else
+            {
+                filter = filter.ToLower();
+
+                var filtered = _allPayrolls.Where(p =>
+                    p.EmployeeId.ToString().Contains(filter) ||
+                    (!string.IsNullOrEmpty(p.BranchName) && p.BranchName.ToLower().Contains(filter)) ||
+                    (!string.IsNullOrEmpty(p.ShiftType) && p.ShiftType.ToLower().Contains(filter)) ||
+                    p.StartDate.ToString("d").Contains(filter) ||
+                    p.EndDate.ToString("d").Contains(filter)
+                ).ToList();
+
+                PayrollList.Clear();
+                foreach (var p in filtered)
+                {
+                    PayrollList.Add(p);
+                }
+            }
+            OnPropertyChanged(nameof(PayrollList));
         }
 
+        private void DeletePayroll(PayrollModel? payroll)
+        {
+            if (payroll == null) return;
 
-        private void AddPayroll(object? obj) { /* TODO */ }
-        private void EditPayroll(object? obj) { /* TODO */ }
-        private void DeletePayroll(object? obj) { /* TODO */ }
-        private void SeeMore(object? obj) { /* TODO */ }
+            var confirm = MessageBox.Show(
+                $"Are you sure you want to delete payroll for employee #{payroll.EmployeeId}?",
+                "Confirm Delete",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (confirm != MessageBoxResult.Yes) return;
+
+            // Remove from both lists
+            _allPayrolls.Remove(payroll);
+            PayrollList.Remove(payroll);
+
+            // Optional: Call service to remove from database
+            // _payrollService.DeletePayrollById(payroll.Id);
+
+            OnPropertyChanged(nameof(PayrollList));
+        }
+
+        // Implement INotifyPropertyChanged
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected virtual void OnPropertyChanged(string propertyName)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

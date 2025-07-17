@@ -1,28 +1,71 @@
 ﻿using System.Windows.Controls;
 using System.Windows;
 using HillsCafeManagement.ViewModels;
+using HillsCafeManagement.Services;
+using HillsCafeManagement.Models;
 
 namespace HillsCafeManagement.Views.Admin.Payroll
 {
     public partial class Payroll : UserControl
     {
         private PayrollViewModel viewModel;
+        private readonly PayrollService payrollService;
 
         public Payroll()
         {
             InitializeComponent();
+            payrollService = new PayrollService();
             viewModel = new PayrollViewModel();
+
             DataContext = viewModel;
+
+            LoadPayrolls();
+        }
+
+        private void LoadPayrolls()
+        {
+            var payrolls = payrollService.GetAllPayrolls();
+            viewModel.LoadPayrolls(payrolls);
         }
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            var textBox = sender as TextBox;
-            if (textBox == null) return;
+            if (sender is TextBox textBox)
+            {
+                string filter = textBox.Text.ToLower();
+                viewModel.FilterPayroll(filter);
+            }
+        }
 
-            string filter = textBox.Text.ToLower();
+        // Method to be called from UI DeleteCommand in ViewModel
+        public bool DeletePayroll(PayrollModel payroll)
+        {
+            if (payroll == null)
+                return false;
 
-            viewModel.FilterPayroll(filter);
+            var result = MessageBox.Show(
+                $"Are you sure you want to delete payroll record for employee ID {payroll.EmployeeId}?",
+                "Confirm Delete",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                bool success = payrollService.DeletePayrollById(payroll.Id);
+
+                if (success)
+                {
+                    MessageBox.Show("Payroll record deleted successfully.", "Deleted", MessageBoxButton.OK, MessageBoxImage.Information);
+                    LoadPayrolls(); // Refresh list after deletion
+                    return true;
+                }
+                else
+                {
+                    MessageBox.Show("Failed to delete payroll record.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+
+            return false;
         }
     }
 }

@@ -100,7 +100,7 @@
 
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Employee ID" Binding="{Binding EmployeeId}" Width="*" />
-                <DataGridTextColumn Header="Full Name" Binding="{Binding FullName}" Width="*" />
+                <DataGridTextColumn Header="Full Name" Binding="{Binding EmployeeFullName}" Width="*" />
                 <DataGridTextColumn Header="Pay Date" Binding="{Binding PayDate}" Width="*" />
                 <DataGridTextColumn Header="Hours Worked" Binding="{Binding HoursWorked}" Width="*" />
                 <DataGridTextColumn Header="Rate/Hour" Binding="{Binding RatePerHour, StringFormat=₱{0:N2}}" Width="*" />
@@ -121,12 +121,13 @@
                                         CommandParameter="{Binding}"
                                         Margin="0,0,5,0"/>
                                 <Button Content="🗑"
-                                        ToolTip="Delete"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        FontSize="16"
-                                        Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}"/>
+                                ToolTip="Delete"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                FontSize="16"
+                                Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" />
+
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
