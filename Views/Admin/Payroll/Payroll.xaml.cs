@@ -1,8 +1,9 @@
-﻿using System.Windows.Controls;
-using System.Windows;
-using HillsCafeManagement.ViewModels;
+﻿using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
-using HillsCafeManagement.Models;
+using HillsCafeManagement.ViewModels;
+using HillsCafeManagement.Views.Admin.Payrolls;
+using System.Windows;
+using System.Windows.Controls;
 
 namespace HillsCafeManagement.Views.Admin.Payroll
 {
@@ -67,5 +68,31 @@ namespace HillsCafeManagement.Views.Admin.Payroll
 
             return false;
         }
+        private void AddPayroll_Click(object sender, RoutedEventArgs e)
+        {
+            var addPayrollPopup = new AddEditPayroll();
+
+            addPayrollPopup.OnPayrollSaved += () =>
+            {
+                LoadPayrolls(); // Refresh payroll list after save
+            };
+
+            RootGrid.Children.Add(addPayrollPopup);
+        }
+        private void EditPayroll_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.DataContext is PayrollModel payroll)
+            {
+                var editPayrollPopup = new AddEditPayroll(payroll); // pass the model to edit
+
+                editPayrollPopup.OnPayrollSaved += () =>
+                {
+                    LoadPayrolls(); // refresh list
+                };
+
+                RootGrid.Children.Add(editPayrollPopup);
+            }
+        }
+
     }
 }
