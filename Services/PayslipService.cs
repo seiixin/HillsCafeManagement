@@ -14,7 +14,9 @@ namespace HillsCafeManagement.Services
             var list = new List<PayslipModel>();
             using var conn = new MySqlConnection(connectionString);
             conn.Open();
-            using var cmd = new MySqlCommand("SELECT PayDate, HoursWorked, RatePerHour, Deductions, NetSalary FROM Payslips WHERE EmployeeId = @EmployeeId", conn);
+            using var cmd = new MySqlCommand(@"SELECT PayDate, HoursWorked, RatePerHour, Deductions, NetSalary 
+                                               FROM Payslips 
+                                               WHERE EmployeeId = @EmployeeId", conn);
             cmd.Parameters.AddWithValue("@EmployeeId", employeeId);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
@@ -36,12 +38,16 @@ namespace HillsCafeManagement.Services
             var list = new List<PayslipRequestModel>();
             using var conn = new MySqlConnection(connectionString);
             conn.Open();
-            using var cmd = new MySqlCommand("SELECT EmployeeId, FullName, RequestDate, Status FROM PayslipRequests", conn);
+
+            // Include ID in the query (assuming your table has an ID column)
+            using var cmd = new MySqlCommand(@"SELECT Id, EmployeeId, FullName, RequestDate, Status 
+                                       FROM PayslipRequests", conn);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
                 list.Add(new PayslipRequestModel
                 {
+                    Id = reader.GetInt32("Id"), // Add this line
                     EmployeeId = reader.GetInt32("EmployeeId"),
                     FullName = reader.GetString("FullName"),
                     RequestDate = reader.GetDateTime("RequestDate"),
@@ -49,6 +55,20 @@ namespace HillsCafeManagement.Services
                 });
             }
             return list;
+        }
+
+        public void UpdateRequestStatus(int id, string newStatus)
+        {
+            using var conn = new MySqlConnection(connectionString);
+            conn.Open();
+
+            // Update by ID instead of EmployeeId
+            using var cmd = new MySqlCommand(@"UPDATE PayslipRequests 
+                                       SET Status = @Status 
+                                       WHERE Id = @Id", conn);
+            cmd.Parameters.AddWithValue("@Status", newStatus);
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.ExecuteNonQuery();
         }
     }
 }

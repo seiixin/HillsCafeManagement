@@ -30,5 +30,10 @@ namespace HillsCafeManagement.Views.Admin.Payslip_Requests
                 viewModel.FilterPayslipRequests(tb.Text);
             }
         }
+
+        private void DataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
+        }
     }
 }

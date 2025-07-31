@@ -1,17 +1,113 @@
-﻿<UserControl x:Class="HillsCafeManagement.Views.Cashier.POS.POSView"
-                          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             mc:Ignorable="d" 
-             d:DesignHeight="300" d:DesignWidth="400">
+﻿<UserControl
+    x:Class="HillsCafeManagement.Views.Cashier.POS.POSView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#2A2B40">
 
-    <Grid Background="White">
-        <TextBlock Text="This is the POS Page"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   FontSize="24"
-                   FontWeight="Bold"
-                   Foreground="DarkSlateGray"/>
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="3*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Side: Product List -->
+        <StackPanel Margin="0,0,10,0">
+            <TextBlock FontSize="24" FontWeight="Bold" Foreground="White" Text="🧾 POS Panel" Margin="0,0,0,20"/>
+
+            <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Table Number:"/>
+            <ComboBox Width="200" Margin="0,5,0,10">
+                <ComboBoxItem Content="Select Table" IsSelected="True"/>
+                <ComboBoxItem Content="Table 1"/>
+                <ComboBoxItem Content="Table 2"/>
+                <ComboBoxItem Content="Table 3"/>
+            </ComboBox>
+
+            <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Filter by Category:"/>
+            <ComboBox Width="200" Margin="0,5,0,10">
+                <ComboBoxItem Content="Select Category" IsSelected="True"/>
+                <ComboBoxItem Content="Hot Drinks"/>
+                <ComboBoxItem Content="Cold Drinks"/>
+            </ComboBox>
+
+            <ListView Background="#D9D9D9" BorderThickness="0" Height="200">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="4">
+                            <TextBlock Text="Espresso" Width="120"/>
+                            <TextBlock Text="₱120" Width="80"/>
+                            <Button Content="+ Add"
+                                    Background="#6378FF"
+                                    Foreground="White"
+                                    FontWeight="Bold"
+                                    BorderThickness="0"
+                                    Padding="4,2"
+                                    Margin="10,0,0,0"
+                                    Cursor="Hand"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+
+                <!-- Hardcoded items -->
+                <ListView.Items>
+                    <ListViewItem/>
+                    <ListViewItem/>
+                    <ListViewItem/>
+                </ListView.Items>
+            </ListView>
+        </StackPanel>
+
+        <!-- Right Side: Cart -->
+        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+            <TextBlock FontSize="24" FontWeight="Bold" Foreground="White" Text="🛒 Cart Panel" Margin="0,0,0,20"/>
+
+            <ListView Background="#D9D9D9" BorderThickness="0" Height="200" Margin="0,0,0,10">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Product" Width="120"/>
+                        <GridViewColumn Header="Qty" Width="50"/>
+                        <GridViewColumn Header="Price" Width="80"/>
+                        <GridViewColumn Header="Remove" Width="80"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+
+            <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Total: 450 PHP" Margin="0,10,0,0"/>
+            <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Payment Method:"/>
+            <ComboBox Width="200" Margin="0,5,0,10">
+                <ComboBoxItem Content="Select Payment" IsSelected="True"/>
+                <ComboBoxItem Content="Cash"/>
+                <ComboBoxItem Content="Card"/>
+            </ComboBox>
+
+            <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Amount Paid:"/>
+            <TextBox Width="200" Margin="0,5,0,10"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                <Button Content="Cancel Order"
+                        Background="#FF6B6B"
+                        Foreground="White"
+                        FontWeight="Bold"
+                        Margin="5"
+                        Padding="8,4"
+                        BorderThickness="0"
+                        Cursor="Hand"/>
+                <Button Content="Place Order"
+                        Background="#6378FF"
+                        Foreground="White"
+                        FontWeight="Bold"
+                        Margin="5"
+                        Padding="8,4"
+                        BorderThickness="0"
+                        Cursor="Hand"/>
+                <Button Content="Print Receipt"
+                        Background="#FFA726"
+                        Foreground="White"
+                        FontWeight="Bold"
+                        Margin="5"
+                        Padding="8,4"
+                        BorderThickness="0"
+                        Cursor="Hand"/>
+            </StackPanel>
+        </StackPanel>
     </Grid>
 </UserControl>
