@@ -12,6 +12,13 @@ namespace HillsCafeManagement.ViewModels
     {
         public ObservableCollection<AttendanceModel> Attendances { get; set; } = new();
 
+        private AttendanceModel _selectedAttendance;
+        public AttendanceModel SelectedAttendance
+        {
+            get => _selectedAttendance;
+            set { _selectedAttendance = value; OnPropertyChanged(nameof(SelectedAttendance)); }
+        }
+
         private DateTime? _filterDate;
         public DateTime? FilterDate
         {
@@ -27,12 +34,18 @@ namespace HillsCafeManagement.ViewModels
         }
 
         public ICommand FilterCommand { get; }
+        public ICommand AddCommand { get; }
+        public ICommand UpdateCommand { get; }
+        public ICommand DeleteCommand { get; }
 
         private readonly AttendanceService _attendanceService = new();
 
         public AttendanceAdminViewModel()
         {
             FilterCommand = new RelayCommand(_ => Filter());
+            AddCommand = new RelayCommand(_ => AddAttendance(), _ => SelectedAttendance != null);
+            UpdateCommand = new RelayCommand(_ => UpdateAttendance(), _ => SelectedAttendance != null);
+            DeleteCommand = new RelayCommand(_ => DeleteAttendance(), _ => SelectedAttendance != null);
             Filter();
         }
 
@@ -44,6 +57,24 @@ namespace HillsCafeManagement.ViewModels
             Attendances.Clear();
             foreach (var attendance in results)
                 Attendances.Add(attendance);
+        }
+
+        private void AddAttendance()
+        {
+            _attendanceService.AddAttendance(SelectedAttendance);
+            Filter();
+        }
+
+        private void UpdateAttendance()
+        {
+            _attendanceService.UpdateAttendance(SelectedAttendance);
+            Filter();
+        }
+
+        private void DeleteAttendance()
+        {
+            _attendanceService.DeleteAttendance(SelectedAttendance.Id);
+            Filter();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

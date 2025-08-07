@@ -61,5 +61,47 @@ namespace HillsCafeManagement.Services
             }
             return results;
         }
+
+        public void AddAttendance(AttendanceModel model)
+        {
+            using var conn = new MySqlConnection(connectionString);
+            conn.Open();
+
+            string sql = "INSERT INTO attendance (employee_id, date, time_in, time_out, status) VALUES (@employeeId, @date, @timeIn, @timeOut, @status)";
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@employeeId", model.EmployeeId);
+            cmd.Parameters.AddWithValue("@date", model.Date);
+            cmd.Parameters.AddWithValue("@timeIn", model.TimeIn);
+            cmd.Parameters.AddWithValue("@timeOut", model.TimeOut);
+            cmd.Parameters.AddWithValue("@status", model.Status);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void UpdateAttendance(AttendanceModel model)
+        {
+            using var conn = new MySqlConnection(connectionString);
+            conn.Open();
+
+            string sql = "UPDATE attendance SET employee_id = @employeeId, date = @date, time_in = @timeIn, time_out = @timeOut, status = @status WHERE id = @id";
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@id", model.Id);
+            cmd.Parameters.AddWithValue("@employeeId", model.EmployeeId);
+            cmd.Parameters.AddWithValue("@date", model.Date);
+            cmd.Parameters.AddWithValue("@timeIn", model.TimeIn);
+            cmd.Parameters.AddWithValue("@timeOut", model.TimeOut);
+            cmd.Parameters.AddWithValue("@status", model.Status);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void DeleteAttendance(int id)
+        {
+            using var conn = new MySqlConnection(connectionString);
+            conn.Open();
+
+            string sql = "DELETE FROM attendance WHERE id = @id";
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.ExecuteNonQuery();
+        }
     }
 }

@@ -9,6 +9,32 @@
 
     <UserControl.Resources>
         <helpers:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibilityConverter" />
+
+        <!-- Reusable Button Style with hover effect -->
+        <Style x:Key="StyledButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter x:Name="MyBorder" Property="Background" Value="#4c5fe0"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="20">
@@ -16,6 +42,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -33,59 +60,21 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                <TextBlock Text="Date:"
-                           Foreground="White"
-                           VerticalAlignment="Center"
-                           Margin="0,0,5,0"/>
-                <DatePicker SelectedDate="{Binding FilterDate}"
-                            Width="140"
-                            Margin="0,0,10,0"/>
-                <TextBlock Text="Employee ID:"
-                           Foreground="White"
-                           VerticalAlignment="Center"
-                           Margin="0,0,5,0"/>
-                <TextBox Text="{Binding FilterEmployeeId}"
-                         Width="120"
-                         Margin="0,0,10,0"/>
+                <TextBlock Text="Date:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                <DatePicker SelectedDate="{Binding FilterDate}" Width="140" Margin="0,0,10,0"/>
+                <TextBlock Text="Employee ID:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                <TextBox Text="{Binding FilterEmployeeId}" Width="120" Margin="0,0,10,0"/>
             </StackPanel>
 
-            <Button Content="Filter"
-                    Grid.Column="1"
-                    Command="{Binding FilterCommand}"
-                    Background="#6378FF"
-                    Foreground="White"
-                    FontWeight="Bold"
-                    Padding="10,5"
-                    Cursor="Hand"
-                    BorderThickness="0">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Button.Template>
-            </Button>
+            <Button Content="Filter" Grid.Column="1" Command="{Binding FilterCommand}"
+                    Background="#6378FF" Style="{StaticResource StyledButton}"/>
         </Grid>
 
-        <!-- Attendance DataGrid -->
-        <DataGrid Grid.Row="2"
-                  ItemsSource="{Binding Attendances}"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  IsReadOnly="True"
-                  Background="#2A2B40"
-                  Foreground="Black"
-                  RowBackground="#D9D9D9"
-                  AlternatingRowBackground="#D9D9D9"
-                  BorderThickness="0"
-                  GridLinesVisibility="None"
-                  ColumnHeaderHeight="40"
-                  RowHeight="40"
-                  Margin="0,10,0,0">
+        <!-- DataGrid -->
+        <DataGrid Grid.Row="2" ItemsSource="{Binding Attendances}" AutoGenerateColumns="False" CanUserAddRows="False"
+                  IsReadOnly="False" Background="#2A2B40" Foreground="Black" RowBackground="#D9D9D9"
+                  AlternatingRowBackground="#D9D9D9" BorderThickness="0" GridLinesVisibility="None"
+                  ColumnHeaderHeight="40" RowHeight="40" Margin="0,10,0,10" SelectedItem="{Binding SelectedAttendance}">
 
             <DataGrid.Resources>
                 <Style TargetType="DataGridColumnHeader">
@@ -97,11 +86,20 @@
             </DataGrid.Resources>
 
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*" />
-                <DataGridTextColumn Header="Time In" Binding="{Binding TimeIn}" Width="*" />
-                <DataGridTextColumn Header="Time Out" Binding="{Binding TimeOut}" Width="*" />
-                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*" />
+                <DataGridTextColumn Header="ID" Binding="{Binding Id}" IsReadOnly="True" Width="*"/>
+                <DataGridTextColumn Header="Employee ID" Binding="{Binding EmployeeId}" Width="*"/>
+                <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*"/>
+                <DataGridTextColumn Header="Time In" Binding="{Binding TimeIn}" Width="*"/>
+                <DataGridTextColumn Header="Time Out" Binding="{Binding TimeOut}" Width="*"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/>
             </DataGrid.Columns>
         </DataGrid>
+
+        <!-- CRUD Buttons -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Add" Command="{Binding AddCommand}" Background="#28a745" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
+            <Button Content="Update" Command="{Binding UpdateCommand}" Background="#ffc107" Foreground="Black" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
+            <Button Content="Delete" Command="{Binding DeleteCommand}" Background="#dc3545" Style="{StaticResource StyledButton}"/>
+        </StackPanel>
     </Grid>
 </UserControl>

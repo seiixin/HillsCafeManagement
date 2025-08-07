@@ -178,8 +178,8 @@
                                         CommandParameter="{Binding}" />
                                 <!-- Deny -->
                                 <Button Content="✖ Deny"
-                                        Background="#F44336"
-                                        Foreground="White"
+                                        Background="#FFFF00"
+                                        Foreground="Black"
                                         FontSize="10"
                                         Padding="8,4"
                                         BorderThickness="0"
@@ -198,7 +198,7 @@
                                         CommandParameter="{Binding}" />
                                 <!-- Delete -->
                                 <Button Content="🗑 Delete"
-                                        Background="#9E9E9E"
+                                        Background="#F44336"
                                         Foreground="White"
                                         FontSize="10"
                                         Padding="8,4"
