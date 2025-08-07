@@ -11,6 +11,7 @@ namespace HillsCafeManagement.Models
         public string Status { get; set; } = "Pending";
         public string? Reason { get; set; }
 
+        public DateTime? UpdatedDate { get; set; }
         public string FullName { get; set; } = string.Empty;
     }
 }

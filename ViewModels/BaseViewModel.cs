@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Collections.Generic;
 
 namespace HillsCafeManagement.ViewModels
 {
@@ -8,17 +7,17 @@ namespace HillsCafeManagement.ViewModels
     {
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = null!)
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        protected bool SetProperty<T>(ref T backingField, T value, [CallerMemberName] string propertyName = null!)
+        protected bool SetProperty<T>(ref T backingStore, T value, [CallerMemberName] string? propertyName = null)
         {
-            if (EqualityComparer<T>.Default.Equals(backingField, value))
+            if (Equals(backingStore, value))
                 return false;
 
-            backingField = value;
+            backingStore = value;
             OnPropertyChanged(propertyName);
             return true;
         }

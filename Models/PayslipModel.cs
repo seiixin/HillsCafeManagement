@@ -15,6 +15,8 @@ namespace HillsCafeManagement.Models
         public decimal Deductions { get; set; }
         public decimal NetSalary { get; set; }
 
+        public DateTime? UpdatedDate { get; set; }
+
         public string Status { get; set; } = "Pending";
     }
 }

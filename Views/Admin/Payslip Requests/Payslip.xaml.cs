@@ -1,6 +1,9 @@
 ﻿using HillsCafeManagement.ViewModels;
+using System;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 
 namespace HillsCafeManagement.Views.Admin.Payslip_Requests
 {
@@ -11,10 +14,8 @@ namespace HillsCafeManagement.Views.Admin.Payslip_Requests
         public Payslip()
         {
             InitializeComponent();
-
             viewModel = new AdminPayslipViewModel();
             this.DataContext = viewModel;
-
             Loaded += Payslip_Loaded;
         }
 
@@ -33,7 +34,25 @@ namespace HillsCafeManagement.Views.Admin.Payslip_Requests
 
         private void DataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            // Handle selection changes if needed
+        }
+    }
 
+    // Simple converter for string to visibility
+    public class StringToVisibilityConverter : IValueConverter
+    {
+        public static readonly StringToVisibilityConverter Instance = new StringToVisibilityConverter();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is string str && !string.IsNullOrEmpty(str))
+                return Visibility.Visible;
+            return Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
         }
     }
 }
