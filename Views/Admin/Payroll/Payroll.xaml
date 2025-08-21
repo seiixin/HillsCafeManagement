@@ -10,8 +10,13 @@
     <Grid x:Name="RootGrid" Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <!-- Header -->
             <RowDefinition Height="Auto"/>
+            <!-- Search + Add -->
+            <RowDefinition Height="Auto"/>
+            <!-- NEW: Period Toolbar -->
             <RowDefinition Height="*"/>
+            <!-- DataGrid -->
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -61,8 +66,134 @@
             </Button>
         </Grid>
 
+        <!-- ========================= -->
+        <!-- NEW: Period Toolbar       -->
+        <!-- ========================= -->
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <!-- Period label -->
+                <ColumnDefinition Width="180"/>
+                <!-- Period combo -->
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="Auto"/>
+                <!-- From label -->
+                <ColumnDefinition Width="160"/>
+                <!-- Start picker -->
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="Auto"/>
+                <!-- To label -->
+                <ColumnDefinition Width="160"/>
+                <!-- End picker -->
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto"/>
+                <!-- Generate btn -->
+            </Grid.ColumnDefinitions>
+
+            <!-- Period Label -->
+            <TextBlock Text="Period:" VerticalAlignment="Center" Foreground="White" Margin="0,0,8,0"/>
+
+            <!-- Period Combo -->
+            <ComboBox x:Name="PeriodCombo"
+                      Grid.Column="1"
+                      VerticalAlignment="Center"
+                      SelectedIndex="0"
+                      Background="White"
+                      Foreground="Black"
+                      Padding="4"
+                      BorderThickness="0">
+                <ComboBoxItem Content="FirstHalf" />
+                <ComboBoxItem Content="SecondHalf" />
+                <ComboBoxItem Content="Custom" />
+            </ComboBox>
+
+            <!-- From Label (visible only for Custom) -->
+            <TextBlock Grid.Column="3" Text="From:" VerticalAlignment="Center" Foreground="White" Margin="0,0,8,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedItem.Content, ElementName=PeriodCombo}" Value="Custom">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <!-- Start Date (visible only for Custom) -->
+            <DatePicker x:Name="CustomStartPicker"
+                        Grid.Column="4"
+                        VerticalAlignment="Center"
+                        Padding="4"
+                        BorderThickness="0">
+                <DatePicker.Style>
+                    <Style TargetType="DatePicker">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedItem.Content, ElementName=PeriodCombo}" Value="Custom">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DatePicker.Style>
+            </DatePicker>
+
+            <!-- To Label (visible only for Custom) -->
+            <TextBlock Grid.Column="6" Text="To:" VerticalAlignment="Center" Foreground="White" Margin="0,0,8,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedItem.Content, ElementName=PeriodCombo}" Value="Custom">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <!-- End Date (visible only for Custom) -->
+            <DatePicker x:Name="CustomEndPicker"
+                        Grid.Column="7"
+                        VerticalAlignment="Center"
+                        Padding="4"
+                        BorderThickness="0">
+                <DatePicker.Style>
+                    <Style TargetType="DatePicker">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedItem.Content, ElementName=PeriodCombo}" Value="Custom">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DatePicker.Style>
+            </DatePicker>
+
+            <!-- Generate Button -->
+            <Button Grid.Column="9"
+                    x:Name="GenerateButton"
+                    Content="Generate Payroll"
+                    Click="GeneratePayroll_Click"
+                    Background="#57B894"
+                    Foreground="White"
+                    FontWeight="Bold"
+                    Padding="10,5"
+                    Cursor="Hand"
+                    BorderThickness="0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </Grid>
+
         <!-- Payroll DataGrid -->
-        <DataGrid Grid.Row="2"
+        <DataGrid Grid.Row="3"
                   ItemsSource="{Binding PayrollList}"
                   AutoGenerateColumns="False"
                   CanUserAddRows="False"

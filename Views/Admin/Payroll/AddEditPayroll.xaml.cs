@@ -17,9 +17,11 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
 
         public List<EmployeeModel> Employees { get; set; } = new();
 
-        // Event to notify parent when saved
         public delegate void PayrollSavedHandler();
         public event PayrollSavedHandler? OnPayrollSaved;
+
+        // NEW: let the host close the overlay cleanly
+        public event Action? CloseRequested;
 
         public AddEditPayroll(PayrollModel? payroll = null)
         {
@@ -60,13 +62,14 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
-            var parent = this.Parent as Panel;
-            parent?.Children.Remove(this);
+            CloseRequested?.Invoke();
         }
 
         private void Save_Click(object sender, RoutedEventArgs e)
         {
-            if (EmployeeComboBox.SelectedValue == null || !DateTime.TryParse(StartDatePicker.Text, out var startDate) || !DateTime.TryParse(EndDatePicker.Text, out var endDate))
+            if (EmployeeComboBox.SelectedValue == null ||
+                !DateTime.TryParse(StartDatePicker.Text, out var startDate) ||
+                !DateTime.TryParse(EndDatePicker.Text, out var endDate))
             {
                 MessageBox.Show("Please fill required fields.");
                 return;
@@ -95,32 +98,18 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
             {
                 payroll.Id = _editingPayroll.Id;
                 success = _payrollService.UpdatePayroll(payroll);
-                if (success)
-                {
-                    MessageBox.Show("Payroll updated successfully.");
-                }
-                else
-                {
-                    MessageBox.Show("Failed to update payroll.");
-                    return;
-                }
+                if (!success) { MessageBox.Show("Failed to update payroll."); return; }
+                MessageBox.Show("Payroll updated successfully.");
             }
             else
             {
                 success = _payrollService.AddPayroll(payroll);
-                if (success)
-                {
-                    MessageBox.Show("Payroll added successfully.");
-                }
-                else
-                {
-                    MessageBox.Show("Failed to add payroll.");
-                    return;
-                }
+                if (!success) { MessageBox.Show("Failed to add payroll."); return; }
+                MessageBox.Show("Payroll added successfully.");
             }
 
             OnPayrollSaved?.Invoke();
-            Cancel_Click(sender, e);
+            CloseRequested?.Invoke();
         }
     }
 }
