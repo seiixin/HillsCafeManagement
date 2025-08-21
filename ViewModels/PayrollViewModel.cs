@@ -1,67 +1,94 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using HillsCafeManagement.Models;
-using HillsCafeManagement.Helpers; // <-- Make sure RelayCommand is in this namespace
+using HillsCafeManagement.Helpers; // RelayCommand<T>
 
 namespace HillsCafeManagement.ViewModels
 {
     public class PayrollViewModel : INotifyPropertyChanged
     {
-        public ObservableCollection<PayrollModel> PayrollList { get; set; } = new();
+        // Backing store of all items (unfiltered)
+        private readonly List<PayrollModel> _allPayrolls = new();
 
-        private ObservableCollection<PayrollModel> _allPayrolls = new();
+        // Exposed to the DataGrid
+        public ObservableCollection<PayrollModel> PayrollList { get; } = new();
+
+        // Optional hook the host can supply to delete from DB: (payrollId) => bool success
+        private readonly Func<int, bool>? _deleteById;
 
         public ICommand DeleteCommand { get; }
 
-        public PayrollViewModel()
+        /// <summary>
+        /// Default: UI-only delete (no DB call). The host can still replace the collection by calling LoadPayrolls again.
+        /// </summary>
+        public PayrollViewModel() : this(deleteById: null) { }
+
+        /// <summary>
+        /// Preferred: supply a delegate to perform DB deletion. If it returns true, the item is removed from the UI.
+        /// Usage from code-behind: new PayrollViewModel(id => _payrollService.DeletePayrollById(id));
+        /// </summary>
+        public PayrollViewModel(Func<int, bool>? deleteById)
         {
-            DeleteCommand = new RelayCommand<PayrollModel>(DeletePayroll);
+            _deleteById = deleteById;
+            DeleteCommand = new RelayCommand<PayrollModel>(DeletePayroll, CanDelete);
         }
 
-        // Load payrolls into the ViewModel
+        private bool CanDelete(PayrollModel? payroll) => payroll != null;
+
+        /// <summary>
+        /// Replace the entire data set (from DB).
+        /// </summary>
         public void LoadPayrolls(List<PayrollModel> payrolls)
         {
-            _allPayrolls = new ObservableCollection<PayrollModel>(payrolls);
+            // Reset full list
+            _allPayrolls.Clear();
+            if (payrolls != null && payrolls.Count > 0)
+                _allPayrolls.AddRange(payrolls);
+
+            // Reset visible list
             PayrollList.Clear();
             foreach (var p in _allPayrolls)
-            {
                 PayrollList.Add(p);
-            }
+
             OnPropertyChanged(nameof(PayrollList));
         }
 
-        // Filter payroll list based on search term
-        public void FilterPayroll(string filter)
+        /// <summary>
+        /// Filter by employee id, name, branch, shift, or period dates (yyyy-MM-dd).
+        /// </summary>
+        public void FilterPayroll(string? filter)
         {
-            if (string.IsNullOrEmpty(filter))
-            {
-                PayrollList.Clear();
-                foreach (var p in _allPayrolls)
-                {
-                    PayrollList.Add(p);
-                }
-            }
-            else
-            {
-                filter = filter.ToLower();
+            var hasFilter = !string.IsNullOrWhiteSpace(filter);
+            var needle = (filter ?? string.Empty).Trim();
 
-                var filtered = _allPayrolls.Where(p =>
-                    p.EmployeeId.ToString().Contains(filter) ||
-                    (!string.IsNullOrEmpty(p.BranchName) && p.BranchName.ToLower().Contains(filter)) ||
-                    (!string.IsNullOrEmpty(p.ShiftType) && p.ShiftType.ToLower().Contains(filter)) ||
-                    p.StartDate.ToString("d").Contains(filter) ||
-                    p.EndDate.ToString("d").Contains(filter)
-                ).ToList();
+            IEnumerable<PayrollModel> source = _allPayrolls;
 
-                PayrollList.Clear();
-                foreach (var p in filtered)
-                {
-                    PayrollList.Add(p);
-                }
+            if (hasFilter)
+            {
+                var n = needle.ToLowerInvariant();
+
+                source = _allPayrolls.Where(p =>
+                    p.EmployeeId.ToString().Contains(n, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrWhiteSpace(p.EmployeeFullName) &&
+                        p.EmployeeFullName!.ToLowerInvariant().Contains(n)) ||
+                    (!string.IsNullOrWhiteSpace(p.BranchName) &&
+                        p.BranchName!.ToLowerInvariant().Contains(n)) ||
+                    (!string.IsNullOrWhiteSpace(p.ShiftType) &&
+                        p.ShiftType!.ToLowerInvariant().Contains(n)) ||
+                    p.StartDate.ToString("yyyy-MM-dd").Contains(n, StringComparison.OrdinalIgnoreCase) ||
+                    p.EndDate.ToString("yyyy-MM-dd").Contains(n, StringComparison.OrdinalIgnoreCase)
+                );
             }
+
+            PayrollList.Clear();
+            foreach (var p in source)
+                PayrollList.Add(p);
+
             OnPropertyChanged(nameof(PayrollList));
         }
 
@@ -77,19 +104,39 @@ namespace HillsCafeManagement.ViewModels
 
             if (confirm != MessageBoxResult.Yes) return;
 
-            // Remove from both lists
+            // If a DB deleter was provided, call it
+            if (_deleteById != null)
+            {
+                var ok = false;
+                try
+                {
+                    ok = _deleteById.Invoke(payroll.Id);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to delete payroll record.\n\n{ex.Message}", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (!ok)
+                {
+                    MessageBox.Show("Failed to delete payroll record.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+            }
+
+            // Remove from in-memory lists
             _allPayrolls.Remove(payroll);
             PayrollList.Remove(payroll);
-
-            // Optional: Call service to remove from database
-            // _payrollService.DeletePayrollById(payroll.Id);
 
             OnPropertyChanged(nameof(PayrollList));
         }
 
-        // Implement INotifyPropertyChanged
+        // ===== INotifyPropertyChanged =====
         public event PropertyChangedEventHandler? PropertyChanged;
-        protected virtual void OnPropertyChanged(string propertyName)
-            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        protected virtual void OnPropertyChanged(string propertyName) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

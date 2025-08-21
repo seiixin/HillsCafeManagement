@@ -89,14 +89,19 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Employee ID" Binding="{Binding EmployeeId}" Width="*" />
                 <DataGridTextColumn Header="Full Name" Binding="{Binding EmployeeFullName}" Width="*" />
-                <DataGridTextColumn Header="Pay Date" Binding="{Binding PayDate}" Width="*" />
-                <DataGridTextColumn Header="Hours Worked" Binding="{Binding HoursWorked}" Width="*" />
-                <DataGridTextColumn Header="Rate/Hour" Binding="{Binding RatePerHour, StringFormat=₱{0:N2}}" Width="*" />
-                <DataGridTextColumn Header="Deductions" Binding="{Binding Deductions, StringFormat=₱{0:N2}}" Width="*" />
+                <DataGridTextColumn Header="Period Start" Binding="{Binding StartDate, StringFormat=\{0:yyyy-MM-dd\}}" Width="*" />
+                <DataGridTextColumn Header="Period End" Binding="{Binding EndDate, StringFormat=\{0:yyyy-MM-dd\}}" Width="*" />
+                <DataGridTextColumn Header="Days Worked" Binding="{Binding TotalDaysWorked}" Width="*" />
+                <DataGridTextColumn Header="Gross Salary" Binding="{Binding GrossSalary, StringFormat=₱{0:N2}}" Width="*" />
+                <DataGridTextColumn Header="SSS" Binding="{Binding SssDeduction, StringFormat=₱{0:N2}}" Width="*" />
+                <DataGridTextColumn Header="PhilHealth" Binding="{Binding PhilhealthDeduction, StringFormat=₱{0:N2}}" Width="*" />
+                <DataGridTextColumn Header="Pag-IBIG" Binding="{Binding PagibigDeduction, StringFormat=₱{0:N2}}" Width="*" />
+                <DataGridTextColumn Header="Other Deductions" Binding="{Binding OtherDeductions, StringFormat=₱{0:N2}}" Width="*" />
+                <DataGridTextColumn Header="Bonus" Binding="{Binding Bonus, StringFormat=₱{0:N2}}" Width="*" />
                 <DataGridTextColumn Header="Net Salary" Binding="{Binding NetSalary, StringFormat=₱{0:N2}}" Width="*" />
 
-                <!-- Actions Column -->
-                <DataGridTemplateColumn Header="Actions" Width="100">
+                <!-- Actions -->
+                <DataGridTemplateColumn Header="Actions" Width="120">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -106,10 +111,9 @@
                                         Background="Transparent"
                                         BorderThickness="0"
                                         FontSize="16"
+                                        Margin="0,0,6,0"
                                         Click="EditPayroll_Click"
-                                        DataContext="{Binding}"
-                                        Margin="0,0,5,0" />
-
+                                        DataContext="{Binding}" />
                                 <!-- Delete -->
                                 <Button Content="🗑"
                                         ToolTip="Delete"

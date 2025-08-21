@@ -1,98 +1,80 @@
-﻿using HillsCafeManagement.Models;
+﻿using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
 using HillsCafeManagement.ViewModels;
 using HillsCafeManagement.Views.Admin.Payrolls;
-using System.Windows;
-using System.Windows.Controls;
 
 namespace HillsCafeManagement.Views.Admin.Payroll
 {
     public partial class Payroll : UserControl
     {
-        private PayrollViewModel viewModel;
-        private readonly PayrollService payrollService;
+        private readonly PayrollService _payrollService = new();
+        private readonly PayrollViewModel _vm = new();
 
         public Payroll()
         {
             InitializeComponent();
-            payrollService = new PayrollService();
-            viewModel = new PayrollViewModel();
-
-            DataContext = viewModel;
-
-            LoadPayrolls();
+            DataContext = _vm;
+            RefreshFromDatabase();
         }
 
-        private void LoadPayrolls()
+        // --- Load/Refresh ---
+        private void RefreshFromDatabase()
         {
-            var payrolls = payrollService.GetAllPayrolls();
-            viewModel.LoadPayrolls(payrolls);
+            var data = _payrollService.GetAllPayrolls();
+            _vm.LoadPayrolls(data);
         }
 
+        // --- Search box handler (hooked in XAML) ---
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (sender is TextBox textBox)
-            {
-                string filter = textBox.Text.ToLower();
-                viewModel.FilterPayroll(filter);
-            }
+            var filter = (sender as TextBox)?.Text ?? string.Empty;
+            _vm.FilterPayroll(filter);
         }
 
-        // Method to be called from UI DeleteCommand in ViewModel
-        public bool DeletePayroll(PayrollModel payroll)
-        {
-            if (payroll == null)
-                return false;
-
-            var result = MessageBox.Show(
-                $"Are you sure you want to delete payroll record for employee ID {payroll.EmployeeId}?",
-                "Confirm Delete",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                bool success = payrollService.DeletePayrollById(payroll.Id);
-
-                if (success)
-                {
-                    MessageBox.Show("Payroll record deleted successfully.", "Deleted", MessageBoxButton.OK, MessageBoxImage.Information);
-                    LoadPayrolls(); // Refresh list after deletion
-                    return true;
-                }
-                else
-                {
-                    MessageBox.Show("Failed to delete payroll record.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-
-            return false;
-        }
+        // --- Add payroll (opens overlay) ---
         private void AddPayroll_Click(object sender, RoutedEventArgs e)
         {
-            var addPayrollPopup = new AddEditPayroll();
-
-            addPayrollPopup.OnPayrollSaved += () =>
-            {
-                LoadPayrolls(); // Refresh payroll list after save
-            };
-
-            RootGrid.Children.Add(addPayrollPopup);
+            var editor = new AddEditPayroll();
+            editor.OnPayrollSaved += RefreshFromDatabase;
+            ShowOverlay(editor);
         }
+
+        // --- Edit payroll (opens overlay) ---
         private void EditPayroll_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.DataContext is PayrollModel payroll)
-            {
-                var editPayrollPopup = new AddEditPayroll(payroll); // pass the model to edit
+            if ((sender as FrameworkElement)?.DataContext is not PayrollModel row) return;
 
-                editPayrollPopup.OnPayrollSaved += () =>
-                {
-                    LoadPayrolls(); // refresh list
-                };
-
-                RootGrid.Children.Add(editPayrollPopup);
-            }
+            var editor = new AddEditPayroll(row);
+            editor.OnPayrollSaved += RefreshFromDatabase;
+            ShowOverlay(editor);
         }
 
+        // --- Optional helper if you later want VM to call into service for deletes ---
+        public bool DeletePayrollById(int id)
+        {
+            var ok = _payrollService.DeletePayrollById(id);
+            if (ok) RefreshFromDatabase();
+            return ok;
+        }
+
+        // --- Lightweight overlay host inside the existing RootGrid ---
+        private void ShowOverlay(UserControl editor)
+        {
+            // Reuse or create a simple overlay host on row 2
+            var host = RootGrid.Children
+                               .OfType<ContentControl>()
+                               .FirstOrDefault(c => c.Name == "OverlayHost");
+            if (host == null)
+            {
+                host = new ContentControl { Name = "OverlayHost" };
+                Grid.SetRow(host, 2); // same row as the DataGrid area
+                RootGrid.Children.Add(host);
+            }
+
+            host.Content = editor;
+        }
     }
 }
