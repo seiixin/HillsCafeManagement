@@ -25,7 +25,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- Simple Search (no watermark style to avoid parser issues) -->
+            <!-- Simple Search -->
             <Border Background="#D9D9D9" CornerRadius="10" Padding="8" Margin="0,0,10,0">
                 <TextBox x:Name="SearchBox"
                          Background="Transparent"
@@ -106,10 +106,20 @@
                 <DataGridTextColumn Header="Status"
                                     Binding="{Binding OrderStatus}"
                                     Width="1.4*" />
-                <DataGridTemplateColumn Header="Actions" Width="1.2*">
+
+                <!-- Actions: Info, Edit, Delete -->
+                <DataGridTemplateColumn Header="Actions" Width="1.6*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Button Content="ℹ️"
+                                        ToolTip="View details"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        FontSize="16"
+                                        Cursor="Hand"
+                                        Margin="0,0,6,0"
+                                        Click="InfoOrder_Click"/>
                                 <Button Content="📝"
                                         ToolTip="Edit"
                                         Background="Transparent"
@@ -132,7 +142,68 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <!-- Editor Overlay -->
+        <!-- READ-ONLY INFO OVERLAY -->
+        <Grid x:Name="InfoPanel"
+              Visibility="Collapsed"
+              Background="#AA000000"
+              Grid.RowSpan="3">
+            <Border Background="#FFFFFF" CornerRadius="12" Padding="16" MaxWidth="900" MaxHeight="620"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header / meta -->
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Vertical">
+                            <TextBlock Text="Order Details" FontSize="20" FontWeight="Bold" />
+                            <TextBlock Margin="0,6,0,0">
+                                <Run Text="Order #"/> <Run Text="{Binding InfoOrder.Id}" FontWeight="Bold"/>
+                                <Run Text=" • Date:"/> <Run Text="{Binding InfoOrder.CreatedAt, StringFormat=\{0:MM/dd/yy HH:mm\}}"/>
+                                <Run Text=" • Table:"/> <Run Text="{Binding InfoOrder.TableNumber}"/>
+                            </TextBlock>
+                            <TextBlock Margin="0,2,0,0">
+                                <Run Text="Payment:"/> <Run Text="{Binding InfoOrder.PaymentStatus}" FontWeight="Bold"/>
+                                <Run Text=" • Status:"/> <Run Text="{Binding InfoOrder.OrderStatus}" FontWeight="Bold"/>
+                                <Run Text=" • Total:"/> <Run Text="{Binding InfoOrder.TotalAmount, StringFormat=\{0:0.##\}}" FontWeight="Bold"/>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <Button Grid.Column="1" Content="✖" Width="28" Height="28" VerticalAlignment="Top" Click="CloseInfo_Click"/>
+                    </Grid>
+
+                    <!-- Items list -->
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding InfoItems}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Product" Binding="{Binding ProductName}" Width="2*" />
+                            <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="1.2*" />
+                            <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="0.8*" />
+                            <DataGridTextColumn Header="Unit Price" Binding="{Binding UnitPrice, StringFormat=\{0:0.##\}}" Width="1.2*" />
+                            <DataGridTextColumn Header="Subtotal" Binding="{Binding Subtotal, StringFormat=\{0:0.##\}}" Width="1.2*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Content="Close" Click="CloseInfo_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- EDITOR OVERLAY -->
         <Grid x:Name="EditorPanel"
               Visibility="Collapsed"
               Background="#AA000000"

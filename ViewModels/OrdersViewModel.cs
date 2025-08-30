@@ -17,23 +17,26 @@ namespace HillsCafeManagement.ViewModels
         // Products for the dropdown (ComboBox) in the items editor
         public ObservableCollection<MenuModel> MenuProducts { get; set; } = new();
 
-        // Inline editor state (no extra files needed)
+        // ----- Inline editor state -----
         public OrderModel? EditingOrder { get; set; }
         public ObservableCollection<OrderItemModel> EditingItems { get; set; } = new();
 
+        // ----- READ-ONLY info state (for ℹ️ overlay) -----
+        public OrderModel? InfoOrder { get; set; }
+        public ObservableCollection<OrderItemModel> InfoItems { get; set; } = new();
+
         public OrdersViewModel()
         {
-            // Keep UI responsive even if DB is down temporarily
-            try { LoadMenu(); } catch { /* ignore load errors */ }
-            try { LoadOrders(); } catch { /* ignore load errors */ }
+            try { LoadMenu(); } catch { /* ignore */ }
+            try { LoadOrders(); } catch { /* ignore */ }
         }
 
-        // ------- Loaders -------
+        // ===== Loaders =====
         public void LoadOrders()
         {
             try
             {
-                var list = _orderService.GetAllOrders();
+                var list = _orderService.GetAllOrders(); // includes Items via service
                 Orders = new ObservableCollection<OrderModel>(list);
                 OnPropertyChanged(nameof(Orders));
             }
@@ -52,7 +55,7 @@ namespace HillsCafeManagement.ViewModels
             OnPropertyChanged(nameof(MenuProducts));
         }
 
-        // ------- Editor lifecycle -------
+        // ===== Editor lifecycle =====
         public void BeginAdd()
         {
             EditingOrder = new OrderModel
@@ -71,7 +74,10 @@ namespace HillsCafeManagement.ViewModels
         {
             if (source == null) return;
 
-            // shallow clone to avoid mutating the grid row until save
+            // Get the freshest items from DB (safer if grid row didn't include items)
+            var items = _orderService.GetOrderItems(source.Id);
+
+            // shallow clone header to avoid mutating the grid row until Save
             EditingOrder = new OrderModel
             {
                 Id = source.Id,
@@ -85,8 +91,9 @@ namespace HillsCafeManagement.ViewModels
                 OrderedByUserId = source.OrderedByUserId
             };
 
+            // clone items for editing
             EditingItems = new ObservableCollection<OrderItemModel>(
-                (source.Items ?? new List<OrderItemModel>()).Select(it => new OrderItemModel
+                (items ?? new List<OrderItemModel>()).Select(it => new OrderItemModel
                 {
                     Id = it.Id,
                     OrderId = it.OrderId,
@@ -102,7 +109,22 @@ namespace HillsCafeManagement.ViewModels
             OnPropertyChanged(nameof(EditingItems));
         }
 
-        // ------- Item row ops -------
+        // ===== Info (read-only) =====
+        public void BeginInfo(OrderModel source)
+        {
+            if (source == null) return;
+
+            // Ensure we show up-to-date items
+            var items = _orderService.GetOrderItems(source.Id);
+
+            InfoOrder = source; // header from grid/service
+            InfoItems = new ObservableCollection<OrderItemModel>(items ?? new List<OrderItemModel>());
+
+            OnPropertyChanged(nameof(InfoOrder));
+            OnPropertyChanged(nameof(InfoItems));
+        }
+
+        // ===== Item row ops =====
         public void AddLine()
         {
             EditingItems.Add(new OrderItemModel { Quantity = 1 });
@@ -126,7 +148,7 @@ namespace HillsCafeManagement.ViewModels
             OnPropertyChanged(nameof(EditingOrder));
         }
 
-        // ------- Persist -------
+        // ===== Persist =====
         public void SaveEditing()
         {
             if (EditingOrder == null) return;

@@ -64,6 +64,24 @@ namespace HillsCafeManagement.Views.Admin.Orders
             }
         }
 
+        // ---------- Info (read-only) ----------
+        private void InfoOrder_Click(object sender, RoutedEventArgs e)
+        {
+            if (OrdersGrid.SelectedItem is not OrderModel selected)
+            {
+                MessageBox.Show("Please select an order to view.", "Orders",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            Vm.BeginInfo(selected);           // fills InfoOrder + InfoItems
+            InfoPanel.Visibility = Visibility.Visible;
+        }
+
+        private void CloseInfo_Click(object sender, RoutedEventArgs e)
+        {
+            InfoPanel.Visibility = Visibility.Collapsed;
+        }
 
         // ---------- List actions ----------
         private void AddOrder_Click(object sender, RoutedEventArgs e)
