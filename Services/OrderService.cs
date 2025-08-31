@@ -11,6 +11,60 @@ namespace HillsCafeManagement.Services
         private readonly string _connectionString =
             "server=localhost;user=root;password=;database=hillscafe_db;";
 
+        // ---------------- Table dropdown model ----------------
+        public sealed class TableOption
+        {
+            public string TableNumber { get; set; } = string.Empty;     // "T01"
+            public string Status { get; set; } = "Available";            // "Available" | "Occupied"
+            public bool Selectable => Status == "Available";           // for disabling occupied rows in the UI
+        }
+
+        // For the status check
+        private static readonly string[] _openStatuses = new[] { "Pending", "Preparing", "Served" };
+
+        // ---------------- TABLES for the picker ----------------
+        /// <summary>
+        /// Returns all cafe tables with derived status. If currentOrderId is provided,
+        /// occupancy by that order is ignored so its current table won’t appear “blocked”.
+        /// </summary>
+        public List<TableOption> GetTablesForPicker(int? currentOrderId = null)
+        {
+            var result = new List<TableOption>();
+
+            using var conn = new MySqlConnection(_connectionString);
+            conn.Open();
+
+            // Derived status from orders; ignore current order (when editing)
+            var sql = $@"
+                SELECT
+                    t.table_number AS TableNumber,
+                    CASE WHEN EXISTS (
+                        SELECT 1 FROM orders o
+                        WHERE o.table_number = t.table_number
+                          AND o.payment_status = 'Unpaid'
+                          AND o.order_status IN ('{string.Join("','", _openStatuses)}')
+                          AND (@ignoreId IS NULL OR o.id <> @ignoreId)
+                    )
+                    THEN 'Occupied' ELSE 'Available' END AS Status
+                FROM cafe_tables t
+                ORDER BY t.table_number;";
+
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@ignoreId", (object?)currentOrderId ?? DBNull.Value);
+
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                result.Add(new TableOption
+                {
+                    TableNumber = r.GetString("TableNumber"),
+                    Status = r.GetString("Status")
+                });
+            }
+
+            return result;
+        }
+
         // ---------------- READ (Orders + Items) ----------------
         public List<OrderModel> GetAllOrders()
         {
@@ -39,17 +93,14 @@ namespace HillsCafeManagement.Services
                 {
                     while (reader.Read())
                     {
-                        // payment_status safe read
                         string? paymentStatusStr = reader.IsDBNull(reader.GetOrdinal("payment_status"))
                             ? null
                             : reader.GetString("payment_status");
 
-                        // order_status safe read
                         string? orderStatusStr = reader.IsDBNull(reader.GetOrdinal("order_status"))
                             ? null
                             : reader.GetString("order_status");
 
-                        // total_amount safe read
                         decimal total = reader.IsDBNull(reader.GetOrdinal("total_amount"))
                             ? 0m
                             : reader.GetDecimal("total_amount");
@@ -71,7 +122,7 @@ namespace HillsCafeManagement.Services
                                 ? os : OrderStatus.Pending,
                             OrderedByUserId = reader.IsDBNull(reader.GetOrdinal("ordered_by_user_id"))
                                 ? null : reader.GetInt32("ordered_by_user_id"),
-                            Items = new List<OrderItemModel>() // filled below
+                            Items = new List<OrderItemModel>()
                         };
 
                         orders.Add(model);
@@ -79,7 +130,6 @@ namespace HillsCafeManagement.Services
                 }
             }
 
-            // Load items for each order (simple & clear; optimize later if needed)
             foreach (var order in orders)
                 order.Items = GetOrderItems(order.Id);
 
@@ -90,47 +140,41 @@ namespace HillsCafeManagement.Services
         {
             var items = new List<OrderItemModel>();
 
-            using (var connection = new MySqlConnection(_connectionString))
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            const string query = @"
+                SELECT 
+                    oi.id,
+                    oi.order_id,
+                    oi.product_id,
+                    oi.quantity,
+                    oi.unit_price,
+                    m.name AS product_name,
+                    m.category
+                FROM order_items oi
+                INNER JOIN menu m ON oi.product_id = m.id
+                WHERE oi.order_id = @orderId";
+
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@orderId", orderId);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
             {
-                connection.Open();
-
-                const string query = @"
-                    SELECT 
-                        oi.id,
-                        oi.order_id,
-                        oi.product_id,
-                        oi.quantity,
-                        oi.unit_price,
-                        m.name AS product_name,
-                        m.category
-                    FROM order_items oi
-                    INNER JOIN menu m ON oi.product_id = m.id
-                    WHERE oi.order_id = @orderId";
-
-                using (var cmd = new MySqlCommand(query, connection))
+                items.Add(new OrderItemModel
                 {
-                    cmd.Parameters.AddWithValue("@orderId", orderId);
-
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            items.Add(new OrderItemModel
-                            {
-                                Id = reader.GetInt32("id"),
-                                OrderId = reader.GetInt32("order_id"),
-                                ProductId = reader.GetInt32("product_id"),
-                                Quantity = reader.GetInt32("quantity"),
-                                UnitPrice = reader.IsDBNull(reader.GetOrdinal("unit_price"))
-                                    ? 0m : reader.GetDecimal("unit_price"),
-                                ProductName = reader.IsDBNull(reader.GetOrdinal("product_name"))
-                                    ? null : reader.GetString("product_name"),
-                                Category = reader.IsDBNull(reader.GetOrdinal("category"))
-                                    ? null : reader.GetString("category")
-                            });
-                        }
-                    }
-                }
+                    Id = reader.GetInt32("id"),
+                    OrderId = reader.GetInt32("order_id"),
+                    ProductId = reader.GetInt32("product_id"),
+                    Quantity = reader.GetInt32("quantity"),
+                    UnitPrice = reader.IsDBNull(reader.GetOrdinal("unit_price"))
+                        ? 0m : reader.GetDecimal("unit_price"),
+                    ProductName = reader.IsDBNull(reader.GetOrdinal("product_name"))
+                        ? null : reader.GetString("product_name"),
+                    Category = reader.IsDBNull(reader.GetOrdinal("category"))
+                        ? null : reader.GetString("category")
+                });
             }
 
             return items;
@@ -139,61 +183,54 @@ namespace HillsCafeManagement.Services
         // ---------------- CREATE ----------------
         public int AddOrder(OrderModel order)
         {
-            // Ensure totals are in sync with items
             if (order.Items != null && order.Items.Count > 0)
-            {
                 order.TotalAmount = order.Items.Sum(x => x.UnitPrice * x.Quantity);
-            }
 
-            // Ensure CreatedAt is sane
             if (order.CreatedAt == default)
                 order.CreatedAt = DateTime.Now;
 
-            using (var connection = new MySqlConnection(_connectionString))
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            using var transaction = connection.BeginTransaction();
+            try
             {
-                connection.Open();
+                // Guard: table must be selected and available
+                EnsureTableAvailable(connection, transaction, order.TableNumber, ignoreOrderId: null);
 
-                using (var transaction = connection.BeginTransaction())
+                const string insertOrder = @"
+                    INSERT INTO orders 
+                        (customer_id, table_number, total_amount, payment_status, created_at, cash_register_id, order_status, ordered_by_user_id)
+                    VALUES
+                        (@customerId, @tableNumber, @totalAmount, @paymentStatus, @createdAt, @cashRegisterId, @orderStatus, @orderedByUserId);
+                    SELECT LAST_INSERT_ID();";
+
+                int newOrderId;
+                using (var cmd = new MySqlCommand(insertOrder, connection, transaction))
                 {
-                    try
-                    {
-                        const string insertOrder = @"
-                            INSERT INTO orders 
-                                (customer_id, table_number, total_amount, payment_status, created_at, cash_register_id, order_status, ordered_by_user_id)
-                            VALUES
-                                (@customerId, @tableNumber, @totalAmount, @paymentStatus, @createdAt, @cashRegisterId, @orderStatus, @orderedByUserId);
-                            SELECT LAST_INSERT_ID();";
+                    cmd.Parameters.AddWithValue("@customerId", (object?)order.CustomerId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@tableNumber", (object?)order.TableNumber ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@totalAmount", order.TotalAmount);
+                    cmd.Parameters.AddWithValue("@paymentStatus", order.PaymentStatus.ToString());
+                    cmd.Parameters.AddWithValue("@createdAt", order.CreatedAt);
+                    cmd.Parameters.AddWithValue("@cashRegisterId", (object?)order.CashRegisterId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@orderStatus", order.OrderStatus.ToString());
+                    cmd.Parameters.AddWithValue("@orderedByUserId", (object?)order.OrderedByUserId ?? DBNull.Value);
 
-                        int newOrderId;
-                        using (var cmd = new MySqlCommand(insertOrder, connection, transaction))
-                        {
-                            cmd.Parameters.AddWithValue("@customerId", (object?)order.CustomerId ?? DBNull.Value);
-                            cmd.Parameters.AddWithValue("@tableNumber", (object?)order.TableNumber ?? DBNull.Value);
-                            cmd.Parameters.AddWithValue("@totalAmount", order.TotalAmount);
-                            cmd.Parameters.AddWithValue("@paymentStatus", order.PaymentStatus.ToString());
-                            cmd.Parameters.AddWithValue("@createdAt", order.CreatedAt);
-                            cmd.Parameters.AddWithValue("@cashRegisterId", (object?)order.CashRegisterId ?? DBNull.Value);
-                            cmd.Parameters.AddWithValue("@orderStatus", order.OrderStatus.ToString());
-                            cmd.Parameters.AddWithValue("@orderedByUserId", (object?)order.OrderedByUserId ?? DBNull.Value);
-
-                            newOrderId = Convert.ToInt32(cmd.ExecuteScalar());
-                        }
-
-                        if (order.Items != null)
-                        {
-                            foreach (var item in order.Items)
-                                AddOrderItem(connection, transaction, newOrderId, item);
-                        }
-
-                        transaction.Commit();
-                        return newOrderId;
-                    }
-                    catch
-                    {
-                        transaction.Rollback();
-                        throw;
-                    }
+                    newOrderId = Convert.ToInt32(cmd.ExecuteScalar());
                 }
+
+                if (order.Items != null)
+                    foreach (var item in order.Items)
+                        AddOrderItem(connection, transaction, newOrderId, item);
+
+                transaction.Commit();
+                return newOrderId;
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
             }
         }
 
@@ -203,110 +240,98 @@ namespace HillsCafeManagement.Services
                 INSERT INTO order_items (order_id, product_id, quantity, unit_price)
                 VALUES (@orderId, @productId, @quantity, @unitPrice)";
 
-            using (var cmd = new MySqlCommand(insertItem, connection, tx))
-            {
-                cmd.Parameters.AddWithValue("@orderId", orderId);
-                cmd.Parameters.AddWithValue("@productId", item.ProductId);
-                cmd.Parameters.AddWithValue("@quantity", item.Quantity);
-                cmd.Parameters.AddWithValue("@unitPrice", item.UnitPrice);
-                cmd.ExecuteNonQuery();
-            }
+            using var cmd = new MySqlCommand(insertItem, connection, tx);
+            cmd.Parameters.AddWithValue("@orderId", orderId);
+            cmd.Parameters.AddWithValue("@productId", item.ProductId);
+            cmd.Parameters.AddWithValue("@quantity", item.Quantity);
+            cmd.Parameters.AddWithValue("@unitPrice", item.UnitPrice);
+            cmd.ExecuteNonQuery();
         }
 
         // ---------------- UPDATE ----------------
         public void UpdateOrder(OrderModel order)
         {
-            // Keep totals in sync
             if (order.Items != null && order.Items.Count > 0)
-            {
                 order.TotalAmount = order.Items.Sum(x => x.UnitPrice * x.Quantity);
-            }
 
-            using (var connection = new MySqlConnection(_connectionString))
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var tx = connection.BeginTransaction();
+            try
             {
-                connection.Open();
-                using (var tx = connection.BeginTransaction())
+                // Guard: table must be available; ignore the current order's own lock
+                EnsureTableAvailable(connection, tx, order.TableNumber, ignoreOrderId: order.Id);
+
+                const string updateOrder = @"
+                    UPDATE orders SET
+                        customer_id=@customerId,
+                        table_number=@tableNumber,
+                        total_amount=@totalAmount,
+                        payment_status=@paymentStatus,
+                        cash_register_id=@cashRegisterId,
+                        order_status=@orderStatus,
+                        ordered_by_user_id=@orderedByUserId
+                    WHERE id=@id";
+
+                using (var cmd = new MySqlCommand(updateOrder, connection, tx))
                 {
-                    try
-                    {
-                        const string updateOrder = @"
-                            UPDATE orders SET
-                                customer_id=@customerId,
-                                table_number=@tableNumber,
-                                total_amount=@totalAmount,
-                                payment_status=@paymentStatus,
-                                cash_register_id=@cashRegisterId,
-                                order_status=@orderStatus,
-                                ordered_by_user_id=@orderedByUserId
-                            WHERE id=@id";
-
-                        using (var cmd = new MySqlCommand(updateOrder, connection, tx))
-                        {
-                            cmd.Parameters.AddWithValue("@id", order.Id);
-                            cmd.Parameters.AddWithValue("@customerId", (object?)order.CustomerId ?? DBNull.Value);
-                            cmd.Parameters.AddWithValue("@tableNumber", (object?)order.TableNumber ?? DBNull.Value);
-                            cmd.Parameters.AddWithValue("@totalAmount", order.TotalAmount);
-                            cmd.Parameters.AddWithValue("@paymentStatus", order.PaymentStatus.ToString());
-                            cmd.Parameters.AddWithValue("@cashRegisterId", (object?)order.CashRegisterId ?? DBNull.Value);
-                            cmd.Parameters.AddWithValue("@orderStatus", order.OrderStatus.ToString());
-                            cmd.Parameters.AddWithValue("@orderedByUserId", (object?)order.OrderedByUserId ?? DBNull.Value);
-                            cmd.ExecuteNonQuery();
-                        }
-
-                        // Simple strategy: replace all items
-                        using (var cmdDel = new MySqlCommand("DELETE FROM order_items WHERE order_id=@id", connection, tx))
-                        {
-                            cmdDel.Parameters.AddWithValue("@id", order.Id);
-                            cmdDel.ExecuteNonQuery();
-                        }
-
-                        if (order.Items != null)
-                        {
-                            foreach (var item in order.Items)
-                                AddOrderItem(connection, tx, order.Id, item);
-                        }
-
-                        tx.Commit();
-                    }
-                    catch
-                    {
-                        tx.Rollback();
-                        throw;
-                    }
+                    cmd.Parameters.AddWithValue("@id", order.Id);
+                    cmd.Parameters.AddWithValue("@customerId", (object?)order.CustomerId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@tableNumber", (object?)order.TableNumber ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@totalAmount", order.TotalAmount);
+                    cmd.Parameters.AddWithValue("@paymentStatus", order.PaymentStatus.ToString());
+                    cmd.Parameters.AddWithValue("@cashRegisterId", (object?)order.CashRegisterId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@orderStatus", order.OrderStatus.ToString());
+                    cmd.Parameters.AddWithValue("@orderedByUserId", (object?)order.OrderedByUserId ?? DBNull.Value);
+                    cmd.ExecuteNonQuery();
                 }
+
+                // Replace all items (simple approach)
+                using (var cmdDel = new MySqlCommand("DELETE FROM order_items WHERE order_id=@id", connection, tx))
+                {
+                    cmdDel.Parameters.AddWithValue("@id", order.Id);
+                    cmdDel.ExecuteNonQuery();
+                }
+
+                if (order.Items != null)
+                    foreach (var item in order.Items)
+                        AddOrderItem(connection, tx, order.Id, item);
+
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
             }
         }
 
         // ---------------- DELETE ----------------
         public void DeleteOrder(int orderId)
         {
-            using (var connection = new MySqlConnection(_connectionString))
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var tx = connection.BeginTransaction();
+            try
             {
-                connection.Open();
-                using (var tx = connection.BeginTransaction())
+                using (var cmd = new MySqlCommand("DELETE FROM order_items WHERE order_id=@id", connection, tx))
                 {
-                    try
-                    {
-                        using (var cmd = new MySqlCommand("DELETE FROM order_items WHERE order_id=@id", connection, tx))
-                        {
-                            cmd.Parameters.AddWithValue("@id", orderId);
-                            cmd.ExecuteNonQuery();
-                        }
-
-                        using (var cmd = new MySqlCommand("DELETE FROM orders WHERE id=@id", connection, tx))
-                        {
-                            cmd.Parameters.AddWithValue("@id", orderId);
-                            cmd.ExecuteNonQuery();
-                        }
-
-                        tx.Commit();
-                    }
-                    catch
-                    {
-                        tx.Rollback();
-                        throw;
-                    }
+                    cmd.Parameters.AddWithValue("@id", orderId);
+                    cmd.ExecuteNonQuery();
                 }
+
+                using (var cmd = new MySqlCommand("DELETE FROM orders WHERE id=@id", connection, tx))
+                {
+                    cmd.Parameters.AddWithValue("@id", orderId);
+                    cmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
             }
         }
 
@@ -315,32 +340,56 @@ namespace HillsCafeManagement.Services
         {
             var products = new List<MenuModel>();
 
-            using (var connection = new MySqlConnection(_connectionString))
-            {
-                connection.Open();
-                const string query = "SELECT id, name, category, price FROM menu ORDER BY name";
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            const string query = "SELECT id, name, category, price FROM menu ORDER BY name";
 
-                using (var cmd = new MySqlCommand(query, connection))
-                using (var reader = cmd.ExecuteReader())
+            using var cmd = new MySqlCommand(query, connection);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                products.Add(new MenuModel
                 {
-                    while (reader.Read())
-                    {
-                        products.Add(new MenuModel
-                        {
-                            Id = reader.GetInt32("id"),
-                            Name = reader.IsDBNull(reader.GetOrdinal("name"))
-                                ? string.Empty : reader.GetString("name"),
-                            Category = reader.IsDBNull(reader.GetOrdinal("category"))
-                                ? string.Empty : reader.GetString("category"),
-                            // MenuModel.Price is nullable, so handle NULLs:
-                            Price = reader.IsDBNull(reader.GetOrdinal("price"))
-                                ? (decimal?)null : reader.GetDecimal("price")
-                        });
-                    }
-                }
+                    Id = reader.GetInt32("id"),
+                    Name = reader.IsDBNull(reader.GetOrdinal("name"))
+                        ? string.Empty : reader.GetString("name"),
+                    Category = reader.IsDBNull(reader.GetOrdinal("category"))
+                        ? string.Empty : reader.GetString("category"),
+                    Price = reader.IsDBNull(reader.GetOrdinal("price"))
+                        ? (decimal?)null : reader.GetDecimal("price")
+                });
             }
 
             return products;
+        }
+
+        // ---------------- Availability helpers ----------------
+        private void EnsureTableAvailable(MySqlConnection conn, MySqlTransaction? tx, string? tableNumber, int? ignoreOrderId)
+        {
+            if (string.IsNullOrWhiteSpace(tableNumber))
+                throw new InvalidOperationException("Please select a table.");
+
+            if (IsTableOccupied(conn, tx, tableNumber!, ignoreOrderId))
+                throw new InvalidOperationException($"Table {tableNumber} is currently occupied.");
+        }
+
+        private bool IsTableOccupied(MySqlConnection conn, MySqlTransaction? tx, string tableNumber, int? ignoreOrderId)
+        {
+            var sql = $@"
+                SELECT EXISTS(
+                    SELECT 1 FROM orders o
+                    WHERE o.table_number = @tn
+                      AND o.payment_status = 'Unpaid'
+                      AND o.order_status IN ('{string.Join("','", _openStatuses)}')
+                      AND (@ignoreId IS NULL OR o.id <> @ignoreId)
+                )";
+
+            using var cmd = new MySqlCommand(sql, conn, tx);
+            cmd.Parameters.AddWithValue("@tn", tableNumber);
+            cmd.Parameters.AddWithValue("@ignoreId", (object?)ignoreOrderId ?? DBNull.Value);
+
+            var obj = cmd.ExecuteScalar();
+            return Convert.ToInt32(obj) == 1;
         }
     }
 }
