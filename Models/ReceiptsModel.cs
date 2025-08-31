@@ -1,11 +1,11 @@
-﻿namespace HillsCafeManagement.Models
-{
-    public class ReceiptsModel
+﻿    namespace HillsCafeManagement.Models
     {
-        public int ReceiptId { get; set; }
-        public int OrderId { get; set; }
-        public int TableNumber { get; set; }
-        public string Date { get; set; } 
-        public decimal Amount { get; set; }
+        public class ReceiptsModel
+        {
+            public int ReceiptId { get; set; }
+            public int OrderId { get; set; }
+            public int TableNumber { get; set; }
+            public string Date { get; set; } 
+            public decimal Amount { get; set; }
+        }
     }
-}

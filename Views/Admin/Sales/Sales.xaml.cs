@@ -1,4 +1,5 @@
 ﻿using System.Windows.Controls;
+using HillsCafeManagement.ViewModels;
 
 namespace HillsCafeManagement.Views.Admin.Sales
 {
@@ -7,6 +8,7 @@ namespace HillsCafeManagement.Views.Admin.Sales
         public Sales()
         {
             InitializeComponent();
+            DataContext = new SalesViewModel();
         }
     }
 }
