@@ -71,6 +71,9 @@ namespace HillsCafeManagement.ViewModels
         {
             try
             {
+                // Auto-create receipts for any Paid orders missing a receipt
+                try { ReceiptsServices.EnsureAllForPaidOrders(); } catch { /* non-fatal */ }
+
                 var data = ReceiptsServices.GetAllReceipts(term);
                 Receipts.Clear();
                 foreach (var r in data) Receipts.Add(r);
@@ -90,7 +93,7 @@ namespace HillsCafeManagement.ViewModels
                 var newModel = new ReceiptsModel
                 {
                     OrderId = 0,   // TODO from UI
-                    Amount = 0m   // TODO from UI
+                    Amount = 0m    // TODO from UI
                 };
 
                 var newId = ReceiptsServices.Create(newModel);
@@ -165,15 +168,24 @@ namespace HillsCafeManagement.ViewModels
                 return;
             }
 
-            var r = Selected;
+            // Load full details (header + items)
+            var details = ReceiptsServices.GetDetailsByReceiptId(Selected.ReceiptId);
+            if (details == null)
+            {
+                MessageBox.Show("Receipt details not found.", "Print",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             // 1) Info popup
+            var h = details.Header;
             var info =
-                $"Receipt ID : {r.ReceiptId}\n" +
-                $"Order ID   : {r.OrderId}\n" +
-                $"Table      : {r.TableNumber}\n" +
-                $"Date       : {r.Date}\n" +
-                $"Amount     : {r.Amount:0.##}\n\n" +
+                $"Receipt ID : {h.ReceiptId}\n" +
+                $"Order ID   : {h.OrderId}\n" +
+                $"Table      : {h.TableNumber}\n" +
+                $"Date       : {h.Date}\n" +
+                $"Amount     : {h.Amount:0.##}\n" +
+                $"Lines      : {details.Lines.Count}\n\n" +
                 "Do you want to export this receipt?";
             MessageBox.Show(info, "Receipt Info", MessageBoxButton.OK, MessageBoxImage.Information);
 
@@ -189,9 +201,9 @@ namespace HillsCafeManagement.ViewModels
             try
             {
                 if (choice == MessageBoxResult.Yes)
-                    ExportReceiptAsPdf(r);
+                    ExportReceiptAsPdf(details);
                 else if (choice == MessageBoxResult.No)
-                    ExportReceiptAsJpg(r);
+                    ExportReceiptAsJpg(details);
             }
             catch (Exception ex)
             {
@@ -200,31 +212,27 @@ namespace HillsCafeManagement.ViewModels
             }
         }
 
-        private void ExportReceiptAsPdf(ReceiptsModel r)
+        private void ExportReceiptAsPdf(ReceiptDetailsModel d)
         {
-            // Build simple printable visual
-            var visual = BuildReceiptVisual(r);
-
+            var visual = BuildReceiptVisual(d);
             var dlg = new PrintDialog();
             if (dlg.ShowDialog() == true)
             {
-                // Size to printable area
                 var size = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
                 visual.Measure(size);
                 visual.Arrange(new Rect(new Point(0, 0), size));
                 visual.UpdateLayout();
 
-                // User can pick "Microsoft Print to PDF" to generate a PDF
-                dlg.PrintVisual(visual, $"Receipt #{r.ReceiptId}");
+                // Pick "Microsoft Print to PDF" to generate a PDF file
+                dlg.PrintVisual(visual, $"Receipt #{d.Header.ReceiptId}");
             }
         }
 
-        private void ExportReceiptAsJpg(ReceiptsModel r)
+        private void ExportReceiptAsJpg(ReceiptDetailsModel d)
         {
-            var visual = BuildReceiptVisual(r);
+            var visual = BuildReceiptVisual(d);
 
-            // Render at friendly size
-            double width = 800, height = 600;
+            double width = 900, height = 700;
             visual.Measure(new Size(width, height));
             visual.Arrange(new Rect(0, 0, width, height));
             visual.UpdateLayout();
@@ -239,7 +247,7 @@ namespace HillsCafeManagement.ViewModels
             {
                 Title = "Save Receipt as JPG",
                 Filter = "JPEG Image (*.jpg)|*.jpg",
-                FileName = $"receipt_{r.ReceiptId}.jpg"
+                FileName = $"receipt_{d.Header.ReceiptId}.jpg"
             };
 
             if (sfd.ShowDialog() == true)
@@ -251,18 +259,25 @@ namespace HillsCafeManagement.ViewModels
             }
         }
 
-        private FrameworkElement BuildReceiptVisual(ReceiptsModel r)
+        private FrameworkElement BuildReceiptVisual(ReceiptDetailsModel d)
         {
+            var h = d.Header;
+
             var root = new Grid
             {
                 Background = Brushes.White,
                 Margin = new Thickness(24)
             };
 
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            for (int i = 0; i < 6; i++)
-                root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            // Rows: title + meta + items header + items + total + footer
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 0 title
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 1 meta
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 2 items header
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 3 items grid
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 4 total
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 5 footer
 
+            // Title
             var title = new TextBlock
             {
                 Text = "Hills Café — Receipt",
@@ -270,37 +285,89 @@ namespace HillsCafeManagement.ViewModels
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 0, 0, 16)
             };
+            Grid.SetRow(title, 0);
+            root.Children.Add(title);
 
-            var line1 = new TextBlock { Text = $"Receipt ID : {r.ReceiptId}", FontSize = 16, Margin = new Thickness(0, 4, 0, 4) };
-            var line2 = new TextBlock { Text = $"Order ID   : {r.OrderId}", FontSize = 16, Margin = new Thickness(0, 4, 0, 4) };
-            var line3 = new TextBlock { Text = $"Table      : {r.TableNumber}", FontSize = 16, Margin = new Thickness(0, 4, 0, 4) };
-            var line4 = new TextBlock { Text = $"Date       : {r.Date}", FontSize = 16, Margin = new Thickness(0, 4, 0, 4) };
-            var line5 = new TextBlock { Text = $"Amount     : {r.Amount:0.##}", FontSize = 16, Margin = new Thickness(0, 4, 0, 4) };
+            // Meta lines
+            var meta = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 12) };
+            meta.Children.Add(new TextBlock { Text = $"Receipt ID : {h.ReceiptId}", FontSize = 16 });
+            meta.Children.Add(new TextBlock { Text = $"Order ID   : {h.OrderId}", FontSize = 16 });
+            meta.Children.Add(new TextBlock { Text = $"Table      : {h.TableNumber}", FontSize = 16 });
+            meta.Children.Add(new TextBlock { Text = $"Date       : {h.Date}", FontSize = 16 });
+            Grid.SetRow(meta, 1);
+            root.Children.Add(meta);
+
+            // Items header
+            var hdr = new Grid { Margin = new Thickness(0, 6, 0, 6) };
+            hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) }); // Product
+            hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Qty
+            hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Unit
+            hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Subtotal
+
+            hdr.Children.Add(MakeCell("Item", true, 0));
+            hdr.Children.Add(MakeCell("Qty", true, 1));
+            hdr.Children.Add(MakeCell("Unit", true, 2));
+            hdr.Children.Add(MakeCell("Subtotal", true, 3));
+
+            Grid.SetRow(hdr, 2);
+            root.Children.Add(hdr);
+
+            // Items body
+            var items = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+            foreach (var line in d.Lines)
+            {
+                var row = new Grid();
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                row.Children.Add(MakeCell(line.ProductName ?? $"#{line.ProductId}", false, 0));
+                row.Children.Add(MakeCell(line.Quantity.ToString(), false, 1));
+                row.Children.Add(MakeCell($"{line.UnitPrice:0.##}", false, 2));
+                row.Children.Add(MakeCell($"{line.Subtotal:0.##}", false, 3));
+                items.Children.Add(row);
+            }
+            Grid.SetRow(items, 3);
+            root.Children.Add(items);
+
+            // Totals
+            var total = new TextBlock
+            {
+                Text = $"TOTAL: {d.GrandTotal:0.##}",
+                FontSize = 18,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 6, 0, 6)
+            };
+            Grid.SetRow(total, 4);
+            root.Children.Add(total);
+
+            // Footer
             var footer = new TextBlock
             {
                 Text = "Thank you for dining with us!",
                 FontSize = 14,
-                Margin = new Thickness(0, 18, 0, 0),
+                Margin = new Thickness(0, 12, 0, 0),
                 Opacity = 0.8
             };
-
-            Grid.SetRow(title, 0);
-            Grid.SetRow(line1, 1);
-            Grid.SetRow(line2, 2);
-            Grid.SetRow(line3, 3);
-            Grid.SetRow(line4, 4);
-            Grid.SetRow(line5, 5);
-            Grid.SetRow(footer, 6);
-
-            root.Children.Add(title);
-            root.Children.Add(line1);
-            root.Children.Add(line2);
-            root.Children.Add(line3);
-            root.Children.Add(line4);
-            root.Children.Add(line5);
+            Grid.SetRow(footer, 5);
             root.Children.Add(footer);
 
             return root;
+
+            static FrameworkElement MakeCell(string text, bool header, int col)
+            {
+                var tb = new TextBlock
+                {
+                    Text = text,
+                    FontSize = header ? 15 : 14,
+                    FontWeight = header ? FontWeights.SemiBold : FontWeights.Normal,
+                    Margin = new Thickness(2, 2, 2, 2)
+                };
+                Grid.SetColumn(tb, col);
+                return tb;
+            }
         }
 
         // ----------- INotifyPropertyChanged -----------

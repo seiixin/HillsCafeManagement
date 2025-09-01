@@ -10,7 +10,11 @@ namespace HillsCafeManagement.Services
     {
         private const string ConnectionString = "server=localhost;user=root;password=;database=hillscafe_db;";
 
-        // ---------- READ all ----------
+        // ======================================================
+        // BASIC CRUD + SEARCH
+        // ======================================================
+
+        // READ all (optional search/limit)
         public static List<ReceiptsModel> GetAllReceipts(string? searchTerm = null, int? limit = null)
         {
             var receipts = new List<ReceiptsModel>();
@@ -55,7 +59,7 @@ namespace HillsCafeManagement.Services
             return receipts;
         }
 
-        // ---------- READ one ----------
+        // READ one by receipt id
         public static ReceiptsModel? GetById(int id)
         {
             using var conn = new MySqlConnection(ConnectionString);
@@ -81,7 +85,30 @@ namespace HillsCafeManagement.Services
             return reader.Read() ? Map(reader) : null;
         }
 
-        // ---------- CREATE ----------
+        // READ one by order id (convenience)
+        public static ReceiptsModel? GetByOrderId(int orderId)
+        {
+            using var conn = new MySqlConnection(ConnectionString);
+            conn.Open();
+            var sql = @"
+                SELECT 
+                    r.id AS ReceiptId, 
+                    r.order_id AS OrderId, 
+                    COALESCE(c.table_id,0) AS TableNumber, 
+                    DATE_FORMAT(r.issued_at, '%m/%d/%y') AS Date, 
+                    r.amount_paid AS Amount
+                FROM receipts r
+                LEFT JOIN orders o ON r.order_id = o.id
+                LEFT JOIN customers c ON o.customer_id = c.id
+                WHERE r.order_id = @oid
+                LIMIT 1;";
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@oid", orderId);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read() ? Map(reader) : null;
+        }
+
+        // CREATE (basic)
         public static int Create(ReceiptsModel model)
         {
             using var conn = new MySqlConnection(ConnectionString);
@@ -99,7 +126,7 @@ namespace HillsCafeManagement.Services
             return Convert.ToInt32(cmd.ExecuteScalar());
         }
 
-        // ---------- UPDATE ----------
+        // UPDATE (amount/order_id)
         public static void Update(ReceiptsModel model)
         {
             using var conn = new MySqlConnection(ConnectionString);
@@ -119,7 +146,7 @@ namespace HillsCafeManagement.Services
             cmd.ExecuteNonQuery();
         }
 
-        // ---------- DELETE ----------
+        // DELETE by receipt id
         public static void Delete(int id)
         {
             using var conn = new MySqlConnection(ConnectionString);
@@ -131,11 +158,128 @@ namespace HillsCafeManagement.Services
             cmd.ExecuteNonQuery();
         }
 
-        // ---------- DETAILS: header + line items ----------
+        // DELETE by order id (convenience)
+        public static void DeleteByOrderId(int orderId)
+        {
+            using var conn = new MySqlConnection(ConnectionString);
+            conn.Open();
+
+            var sql = "DELETE FROM receipts WHERE order_id = @oid;";
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@oid", orderId);
+            cmd.ExecuteNonQuery();
+        }
+
+        // ======================================================
+        // AUTO-SYNC HELPERS (so PAID orders appear as receipts)
+        // ======================================================
+
         /// <summary>
-        /// Returns the receipt header plus its order's line items (product, qty, unit price, subtotal).
-        /// Useful for printing/exporting a full receipt.
+        /// Ensure a receipt exists for an order IF the order is Paid.
+        /// Returns the existing/new receipt id, or null if order is not Paid.
         /// </summary>
+        public static int? EnsureForPaidOrder(int orderId)
+        {
+            using var conn = new MySqlConnection(ConnectionString);
+            conn.Open();
+
+            // 1) Check order payment status + total
+            string? paymentStatus = null;
+            decimal total = 0m;
+            using (var cmd = new MySqlCommand(
+                "SELECT payment_status, COALESCE(total_amount,0) AS total_amount FROM orders WHERE id=@id", conn))
+            {
+                cmd.Parameters.AddWithValue("@id", orderId);
+                using var r = cmd.ExecuteReader();
+                if (r.Read())
+                {
+                    paymentStatus = r.IsDBNull(r.GetOrdinal("payment_status")) ? null : r.GetString("payment_status");
+                    total = r.GetDecimal(r.GetOrdinal("total_amount"));
+                }
+            }
+
+            if (!string.Equals(paymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
+                return null; // not paid -> no receipt
+
+            // 2) If receipt already exists, return it
+            using (var cmd = new MySqlCommand("SELECT id FROM receipts WHERE order_id=@oid LIMIT 1", conn))
+            {
+                cmd.Parameters.AddWithValue("@oid", orderId);
+                var existing = cmd.ExecuteScalar();
+                if (existing != null && existing != DBNull.Value)
+                {
+                    // Optional: keep amount in sync with order.total_amount
+                    using var upd = new MySqlCommand("UPDATE receipts SET amount_paid=@amt WHERE id=@rid", conn);
+                    upd.Parameters.AddWithValue("@amt", total);
+                    upd.Parameters.AddWithValue("@rid", Convert.ToInt32(existing));
+                    upd.ExecuteNonQuery();
+
+                    return Convert.ToInt32(existing);
+                }
+            }
+
+            // 3) Create receipt (issued now, amount from order)
+            using (var cmd = new MySqlCommand(@"
+                INSERT INTO receipts (order_id, amount_paid, issued_at)
+                VALUES (@oid, @amt, NOW());
+                SELECT LAST_INSERT_ID();", conn))
+            {
+                cmd.Parameters.AddWithValue("@oid", orderId);
+                cmd.Parameters.AddWithValue("@amt", total);
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+        }
+
+        /// <summary>
+        /// Sync a single order: if Paid -> ensure receipt exists; if Unpaid -> delete any existing receipt.
+        /// </summary>
+        public static void SyncForOrder(int orderId)
+        {
+            using var conn = new MySqlConnection(ConnectionString);
+            conn.Open();
+
+            string? paymentStatus = null;
+            using (var cmd = new MySqlCommand("SELECT payment_status FROM orders WHERE id=@id", conn))
+            {
+                cmd.Parameters.AddWithValue("@id", orderId);
+                var val = cmd.ExecuteScalar();
+                paymentStatus = val == null || val == DBNull.Value ? null : Convert.ToString(val);
+            }
+
+            if (string.Equals(paymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
+            {
+                EnsureForPaidOrder(orderId);
+            }
+            else
+            {
+                DeleteByOrderId(orderId);
+            }
+        }
+
+        /// <summary>
+        /// Bulk: create receipts for any PAID orders that don't yet have one.
+        /// (Safe to run before listing receipts.)
+        /// </summary>
+        public static int EnsureAllForPaidOrders()
+        {
+            using var conn = new MySqlConnection(ConnectionString);
+            conn.Open();
+
+            var sql = @"
+                INSERT INTO receipts (order_id, amount_paid, issued_at)
+                SELECT o.id, COALESCE(o.total_amount,0), NOW()
+                FROM orders o
+                LEFT JOIN receipts r ON r.order_id = o.id
+                WHERE o.payment_status = 'Paid' AND r.id IS NULL;";
+
+            using var cmd = new MySqlCommand(sql, conn);
+            return cmd.ExecuteNonQuery(); // number of inserted receipts
+        }
+
+        // ======================================================
+        // RECEIPT DETAILS (header + lines) for print/export
+        // ======================================================
+
         public static ReceiptDetailsModel? GetDetailsByReceiptId(int receiptId)
         {
             using var conn = new MySqlConnection(ConnectionString);
@@ -168,7 +312,7 @@ namespace HillsCafeManagement.Services
 
             var details = new ReceiptDetailsModel { Header = header };
 
-            // 2) Lines (adjust table/column names if yours are different: order_items, menu)
+            // 2) Lines
             var linesSql = @"
                 SELECT 
                     oi.product_id        AS ProductId,
@@ -203,7 +347,10 @@ namespace HillsCafeManagement.Services
             return details;
         }
 
-        // ---------- Mapper ----------
+        // ======================================================
+        // MAPPER
+        // ======================================================
+
         private static ReceiptsModel Map(IDataRecord r) => new ReceiptsModel
         {
             ReceiptId = r.GetInt32(r.GetOrdinal("ReceiptId")),
@@ -217,7 +364,7 @@ namespace HillsCafeManagement.Services
 
 /* -----------------------------------------------------------------
    Lightweight DTOs for full-receipt export (kept here to avoid
-   making new files; feel free to move them under Models\ later).
+   new files; move to Models\ later if you prefer).
 ------------------------------------------------------------------*/
 namespace HillsCafeManagement.Models
 {

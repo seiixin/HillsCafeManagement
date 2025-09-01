@@ -4,9 +4,9 @@
              xmlns:vm="clr-namespace:HillsCafeManagement.ViewModels"
              Background="#2A2B40">
 
-    <!-- VM: ReceiptsViewModel with full CRUD/Search/Print -->
+    <!-- ViewModel -->
     <UserControl.DataContext>
-        <vm:ReceiptsViewModel />
+        <vm:ReceiptsViewModel/>
     </UserControl.DataContext>
 
     <Grid Margin="20">
@@ -26,10 +26,10 @@
         <!-- Search + actions -->
         <Grid Grid.Row="1" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <!-- Search box with watermark -->
@@ -42,7 +42,7 @@
                              Foreground="Black"
                              FontSize="14"
                              VerticalContentAlignment="Center"
-                             Tag="Search Name, Order ID, or Date"/>
+                             Tag="Search Order ID, Table, or Date"/>
                     <TextBlock Text="{Binding ElementName=SearchBox, Path=Tag}"
                                Foreground="#6B7280"
                                Margin="4,0,0,0"
@@ -72,7 +72,9 @@
                     Cursor="Hand">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -90,7 +92,9 @@
                     Cursor="Hand">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -107,7 +111,9 @@
                     Cursor="Hand">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -141,15 +147,19 @@
             </DataGrid.Resources>
 
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Receipt ID" Binding="{Binding ReceiptId}" Width="1.2*" />
-                <DataGridTextColumn Header="Order ID"   Binding="{Binding OrderId}"   Width="1.2*" />
-                <DataGridTextColumn Header="Table"      Binding="{Binding TableNumber}" Width="1.0*" />
-                <DataGridTextColumn Header="Date"       Binding="{Binding Date}"       Width="1.4*" />
-                <DataGridTextColumn Header="Amount"     Binding="{Binding Amount, StringFormat={}{0:0.##}}" Width="1.2*" />
+                <DataGridTextColumn Header="Receipt ID" Binding="{Binding ReceiptId}" Width="1.2*"/>
+                <DataGridTextColumn Header="Order ID"   Binding="{Binding OrderId}"   Width="1.2*"/>
+                <DataGridTextColumn Header="Table"      Binding="{Binding TableNumber}" Width="1.0*"/>
+                <DataGridTextColumn Header="Date"       Binding="{Binding Date}"       Width="1.4*"/>
+                <DataGridTextColumn Header="Amount"
+                                    Binding="{Binding Amount, StringFormat=\{0:0.##\}}"
+                                    Width="1.2*"/>
+
                 <DataGridTemplateColumn Header="Actions" Width="1.2*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <!-- Uses VM command; row selection is already bound via SelectedItem -->
                                 <Button Content="🖨 Print"
                                         Command="{Binding DataContext.PrintCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}"

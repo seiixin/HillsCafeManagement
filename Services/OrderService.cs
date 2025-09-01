@@ -14,9 +14,9 @@ namespace HillsCafeManagement.Services
         // ---------------- Table dropdown model ----------------
         public sealed class TableOption
         {
-            public string TableNumber { get; set; } = string.Empty;     // "T01"
-            public string Status { get; set; } = "Available";            // "Available" | "Occupied"
-            public bool Selectable => Status == "Available";           // for disabling occupied rows in the UI
+            public string TableNumber { get; set; } = string.Empty;   // "T01"
+            public string Status { get; set; } = "Available";          // "Available" | "Occupied"
+            public bool Selectable => Status == "Available";           // disable occupied in UI
         }
 
         // For the status check
@@ -34,7 +34,6 @@ namespace HillsCafeManagement.Services
             using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
-            // Derived status from orders; ignore current order (when editing)
             var sql = $@"
                 SELECT
                     t.table_number AS TableNumber,
@@ -94,16 +93,13 @@ namespace HillsCafeManagement.Services
                     while (reader.Read())
                     {
                         string? paymentStatusStr = reader.IsDBNull(reader.GetOrdinal("payment_status"))
-                            ? null
-                            : reader.GetString("payment_status");
+                            ? null : reader.GetString("payment_status");
 
                         string? orderStatusStr = reader.IsDBNull(reader.GetOrdinal("order_status"))
-                            ? null
-                            : reader.GetString("order_status");
+                            ? null : reader.GetString("order_status");
 
                         decimal total = reader.IsDBNull(reader.GetOrdinal("total_amount"))
-                            ? 0m
-                            : reader.GetDecimal("total_amount");
+                            ? 0m : reader.GetDecimal("total_amount");
 
                         var model = new OrderModel
                         {
@@ -224,6 +220,12 @@ namespace HillsCafeManagement.Services
                     foreach (var item in order.Items)
                         AddOrderItem(connection, transaction, newOrderId, item);
 
+                // If the order starts as Paid, ensure a receipt exists
+                if (order.PaymentStatus == PaymentStatus.Paid)
+                {
+                    EnsureReceiptExists(connection, transaction, newOrderId, order.TotalAmount);
+                }
+
                 transaction.Commit();
                 return newOrderId;
             }
@@ -259,7 +261,18 @@ namespace HillsCafeManagement.Services
             using var tx = connection.BeginTransaction();
             try
             {
-                // Guard: table must be available; ignore the current order's own lock
+                // Fetch previous payment status to detect transition (Paid/Unpaid)
+                string prevPaymentStatus = "Unpaid";
+                using (var getPrev = new MySqlCommand(
+                    "SELECT payment_status FROM orders WHERE id=@id LIMIT 1;", connection, tx))
+                {
+                    getPrev.Parameters.AddWithValue("@id", order.Id);
+                    var obj = getPrev.ExecuteScalar();
+                    if (obj != null && obj != DBNull.Value)
+                        prevPaymentStatus = Convert.ToString(obj) ?? "Unpaid";
+                }
+
+                // Guard: table must be available; ignore current order’s own lock
                 EnsureTableAvailable(connection, tx, order.TableNumber, ignoreOrderId: order.Id);
 
                 const string updateOrder = @"
@@ -297,6 +310,22 @@ namespace HillsCafeManagement.Services
                     foreach (var item in order.Items)
                         AddOrderItem(connection, tx, order.Id, item);
 
+                // ===== Receipt handling (atomic with the update) =====
+                bool wasPaid = prevPaymentStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase);
+                bool nowPaid = order.PaymentStatus == PaymentStatus.Paid;
+
+                if (!wasPaid && nowPaid)
+                {
+                    // Transitioned to Paid → ensure receipt exists
+                    EnsureReceiptExists(connection, tx, order.Id, order.TotalAmount);
+                }
+                else if (wasPaid && !nowPaid)
+                {
+                    // Transitioned to Unpaid → decide policy
+                    // Uncomment to remove the receipt when reverting to Unpaid:
+                    // RemoveReceiptIfAny(connection, tx, order.Id);
+                }
+
                 tx.Commit();
             }
             catch
@@ -326,6 +355,13 @@ namespace HillsCafeManagement.Services
                     cmd.ExecuteNonQuery();
                 }
 
+                // Optional: also remove receipts for that order if desired
+                // using (var cmd = new MySqlCommand("DELETE FROM receipts WHERE order_id=@id", connection, tx))
+                // {
+                //     cmd.Parameters.AddWithValue("@id", orderId);
+                //     cmd.ExecuteNonQuery();
+                // }
+
                 tx.Commit();
             }
             catch
@@ -351,12 +387,9 @@ namespace HillsCafeManagement.Services
                 products.Add(new MenuModel
                 {
                     Id = reader.GetInt32("id"),
-                    Name = reader.IsDBNull(reader.GetOrdinal("name"))
-                        ? string.Empty : reader.GetString("name"),
-                    Category = reader.IsDBNull(reader.GetOrdinal("category"))
-                        ? string.Empty : reader.GetString("category"),
-                    Price = reader.IsDBNull(reader.GetOrdinal("price"))
-                        ? (decimal?)null : reader.GetDecimal("price")
+                    Name = reader.IsDBNull(reader.GetOrdinal("name")) ? string.Empty : reader.GetString("name"),
+                    Category = reader.IsDBNull(reader.GetOrdinal("category")) ? string.Empty : reader.GetString("category"),
+                    Price = reader.IsDBNull(reader.GetOrdinal("price")) ? (decimal?)null : reader.GetDecimal("price")
                 });
             }
 
@@ -390,6 +423,34 @@ namespace HillsCafeManagement.Services
 
             var obj = cmd.ExecuteScalar();
             return Convert.ToInt32(obj) == 1;
+        }
+
+        // ---------------- Receipts helpers (transactional) ----------------
+        private void EnsureReceiptExists(MySqlConnection conn, MySqlTransaction tx, int orderId, decimal amount)
+        {
+            // Check if a receipt already exists
+            using (var check = new MySqlCommand("SELECT id FROM receipts WHERE order_id=@oid LIMIT 1;", conn, tx))
+            {
+                check.Parameters.AddWithValue("@oid", orderId);
+                var existing = check.ExecuteScalar();
+                if (existing != null && existing != DBNull.Value) return;
+            }
+
+            // Insert a new receipt
+            using (var ins = new MySqlCommand(
+                "INSERT INTO receipts (order_id, amount_paid, issued_at) VALUES (@oid, @amt, NOW());", conn, tx))
+            {
+                ins.Parameters.AddWithValue("@oid", orderId);
+                ins.Parameters.AddWithValue("@amt", amount);
+                ins.ExecuteNonQuery();
+            }
+        }
+
+        private void RemoveReceiptIfAny(MySqlConnection conn, MySqlTransaction tx, int orderId)
+        {
+            using var del = new MySqlCommand("DELETE FROM receipts WHERE order_id=@id;", conn, tx);
+            del.Parameters.AddWithValue("@id", orderId);
+            del.ExecuteNonQuery();
         }
     }
 }
