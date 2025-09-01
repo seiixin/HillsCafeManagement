@@ -8,7 +8,8 @@ namespace HillsCafeManagement.Views.Employee.Attendance
         public AttendanceView()
         {
             InitializeComponent();
-            DataContext = new AttendanceEmployeeViewModel(); // <-- important
+            // Bind to the updated VM that includes list + filters + refresh
+            DataContext = new AttendanceEmployeeViewModel();
         }
     }
 }

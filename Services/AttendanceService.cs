@@ -200,5 +200,48 @@ namespace HillsCafeManagement.Services
             cmd.Parameters.AddWithValue("@id", id);
             cmd.ExecuteNonQuery();
         }
+
+        // Add inside HillsCafeManagement.Services.AttendanceService
+        public List<AttendanceModel> GetAttendancesForEmployee(int employeeId, DateTime? from = null, DateTime? to = null)
+        {
+            var results = new List<AttendanceModel>();
+            using var conn = new MySqlConnection(connectionString);
+            conn.Open();
+
+            var sql = @"
+        SELECT id, employee_id, date, time_in, time_out, status
+        FROM attendance
+        WHERE employee_id = @employeeId";
+
+            if (from.HasValue && to.HasValue)
+                sql += " AND date BETWEEN @from AND @to";
+            else if (from.HasValue)
+                sql += " AND date >= @from";
+            else if (to.HasValue)
+                sql += " AND date <= @to";
+
+            sql += " ORDER BY date DESC, time_in DESC, id DESC";
+
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@employeeId", employeeId);
+            if (from.HasValue) cmd.Parameters.Add("@from", MySqlDbType.Date).Value = from.Value.Date;
+            if (to.HasValue) cmd.Parameters.Add("@to", MySqlDbType.Date).Value = to.Value.Date;
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                results.Add(new AttendanceModel
+                {
+                    Id = reader.GetInt32("id"),
+                    EmployeeId = reader.GetInt32("employee_id"),
+                    Date = reader.GetDateTime("date"),
+                    TimeIn = reader.IsDBNull(reader.GetOrdinal("time_in")) ? (TimeSpan?)null : reader.GetTimeSpan("time_in"),
+                    TimeOut = reader.IsDBNull(reader.GetOrdinal("time_out")) ? (TimeSpan?)null : reader.GetTimeSpan("time_out"),
+                    Status = reader.GetString("status")
+                });
+            }
+            return results;
+        }
+
     }
 }

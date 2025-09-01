@@ -4,10 +4,8 @@
              xmlns:vm="clr-namespace:HillsCafeManagement.ViewModels"
              Background="#2A2B40">
 
-    <!-- ViewModel -->
-    <UserControl.DataContext>
-        <vm:ReceiptsViewModel/>
-    </UserControl.DataContext>
+    <!-- deleted ViewModel -->
+
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
