@@ -10,104 +10,203 @@
             <ColumnDefinition Width="3*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Left Side: Product List -->
+        <!-- ===================== Left: Product List ===================== -->
         <StackPanel Margin="0,0,10,0">
-            <TextBlock FontSize="24" FontWeight="Bold" Foreground="White" Text="🧾 POS Panel" Margin="0,0,0,20"/>
+            <TextBlock FontSize="24" FontWeight="Bold" Foreground="White"
+                       Text="🧾 POS Panel" Margin="0,0,0,20"/>
 
+            <!-- Table picker (admin VM data) -->
             <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Table Number:"/>
-            <ComboBox Width="200" Margin="0,5,0,10">
-                <ComboBoxItem Content="Select Table" IsSelected="True"/>
-                <ComboBoxItem Content="Table 1"/>
-                <ComboBoxItem Content="Table 2"/>
-                <ComboBoxItem Content="Table 3"/>
+            <ComboBox Width="220" Margin="0,5,0,10"
+                      ItemsSource="{Binding TablesForPicker}"
+                      SelectedValuePath="TableNumber"
+                      SelectedValue="{Binding EditingOrder.TableNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      IsTextSearchEnabled="True" TextSearch.TextPath="TableNumber">
+                <ComboBox.ItemContainerStyle>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="IsEnabled" Value="{Binding Selectable}"/>
+                        <Setter Property="ToolTip"    Value="{Binding Status}"/>
+                    </Style>
+                </ComboBox.ItemContainerStyle>
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding TableNumber}" FontWeight="Bold"/>
+                            <TextBlock Text="  •  "/>
+                            <TextBlock Text="{Binding Status}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
             </ComboBox>
 
+            <!-- Category filter (built in code-behind) -->
             <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Filter by Category:"/>
-            <ComboBox Width="200" Margin="0,5,0,10">
-                <ComboBoxItem Content="Select Category" IsSelected="True"/>
-                <ComboBoxItem Content="Hot Drinks"/>
-                <ComboBoxItem Content="Cold Drinks"/>
-            </ComboBox>
+            <ComboBox x:Name="CategoryCombo" Width="220" Margin="0,5,0,10"
+                      SelectionChanged="CategoryCombo_SelectionChanged"/>
 
-            <ListView Background="#D9D9D9" BorderThickness="0" Height="200">
+            <!-- Product search (plain TextBox) -->
+            <TextBlock FontSize="12" Foreground="#CCCCCC" Text="Search products..." Margin="0,0,0,2"/>
+            <TextBox x:Name="SearchBox"
+                     Margin="0,0,0,10"
+                     Padding="8"
+                     FontSize="14"
+                     VerticalContentAlignment="Center"
+                     Background="White"
+                     Foreground="Black"
+                     BorderThickness="1"
+                     BorderBrush="#CCCCCC"
+                     TextChanged="SearchBox_TextChanged"/>
+
+            <!-- Menu list (filtered list set in code-behind) -->
+            <ListView x:Name="ProductList"
+                      Background="#D9D9D9"
+                      BorderThickness="0"
+                      Height="320">
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Orientation="Horizontal" Margin="4">
-                            <TextBlock Text="Espresso" Width="120"/>
-                            <TextBlock Text="₱120" Width="80"/>
+                            <TextBlock Text="{Binding Name}" Width="180"/>
+                            <TextBlock Text="{Binding Price, StringFormat=₱{0:N2}}" Width="100"/>
                             <Button Content="+ Add"
+                                    Click="AddProduct_Click"
                                     Background="#6378FF"
                                     Foreground="White"
                                     FontWeight="Bold"
                                     BorderThickness="0"
-                                    Padding="4,2"
+                                    Padding="6,2"
                                     Margin="10,0,0,0"
                                     Cursor="Hand"/>
                         </StackPanel>
                     </DataTemplate>
                 </ListView.ItemTemplate>
-
-                <!-- Hardcoded items -->
-                <ListView.Items>
-                    <ListViewItem/>
-                    <ListViewItem/>
-                    <ListViewItem/>
-                </ListView.Items>
             </ListView>
         </StackPanel>
 
-        <!-- Right Side: Cart -->
-        <StackPanel Grid.Column="1" Margin="10,0,0,0">
-            <TextBlock FontSize="24" FontWeight="Bold" Foreground="White" Text="🛒 Cart Panel" Margin="0,0,0,20"/>
+        <!-- ===================== Right: Add Order (same as admin editor) ===================== -->
+        <Grid Grid.Column="1" Margin="10,0,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-            <ListView Background="#D9D9D9" BorderThickness="0" Height="200" Margin="0,0,0,10">
-                <ListView.View>
-                    <GridView>
-                        <GridViewColumn Header="Product" Width="120"/>
-                        <GridViewColumn Header="Qty" Width="50"/>
-                        <GridViewColumn Header="Price" Width="80"/>
-                        <GridViewColumn Header="Remove" Width="80"/>
-                    </GridView>
-                </ListView.View>
-            </ListView>
+            <!-- Header row with table + payment + status + total -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Top">
+                <TextBlock Text="Create Order" FontSize="20" FontWeight="Bold" Margin="0,0,12,0"/>
 
-            <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Total: 450 PHP" Margin="0,10,0,0"/>
-            <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Payment Method:"/>
-            <ComboBox Width="200" Margin="0,5,0,10">
-                <ComboBoxItem Content="Select Payment" IsSelected="True"/>
-                <ComboBoxItem Content="Cash"/>
-                <ComboBoxItem Content="Card"/>
-            </ComboBox>
+                <!-- Table -->
+                <TextBlock Text="•  Table:" VerticalAlignment="Center" Margin="12,0,4,0" Foreground="White"/>
+                <ComboBox Width="180"
+                          ItemsSource="{Binding TablesForPicker}"
+                          SelectedValuePath="TableNumber"
+                          SelectedValue="{Binding EditingOrder.TableNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          IsTextSearchEnabled="True"
+                          TextSearch.TextPath="TableNumber">
+                    <ComboBox.ItemContainerStyle>
+                        <Style TargetType="ComboBoxItem">
+                            <Setter Property="IsEnabled" Value="{Binding Selectable}"/>
+                            <Setter Property="ToolTip"    Value="{Binding Status}"/>
+                        </Style>
+                    </ComboBox.ItemContainerStyle>
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding TableNumber}" FontWeight="Bold"/>
+                                <TextBlock Text="  •  "/>
+                                <TextBlock Text="{Binding Status}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
 
-            <TextBlock FontWeight="Bold" FontSize="16" Foreground="White" Text="Amount Paid:"/>
-            <TextBox Width="200" Margin="0,5,0,10"/>
+                <!-- Payment -->
+                <TextBlock Text="•  Payment:" VerticalAlignment="Center" Margin="12,0,4,0" Foreground="White"/>
+                <ComboBox Width="120"
+                          ItemsSource="{Binding PaymentStatuses}"
+                          SelectedItem="{Binding EditingOrder.PaymentStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                <Button Content="Cancel Order"
-                        Background="#FF6B6B"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        Margin="5"
-                        Padding="8,4"
-                        BorderThickness="0"
-                        Cursor="Hand"/>
-                <Button Content="Place Order"
-                        Background="#6378FF"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        Margin="5"
-                        Padding="8,4"
-                        BorderThickness="0"
-                        Cursor="Hand"/>
-                <Button Content="Print Receipt"
-                        Background="#FFA726"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        Margin="5"
-                        Padding="8,4"
-                        BorderThickness="0"
-                        Cursor="Hand"/>
+                <!-- Status -->
+                <TextBlock Text="•  Status:" VerticalAlignment="Center" Margin="12,0,4,0" Foreground="White"/>
+                <ComboBox Width="140"
+                          ItemsSource="{Binding OrderStatuses}"
+                          SelectedItem="{Binding EditingOrder.OrderStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <!-- Total -->
+                <TextBlock Text="•  Total:" VerticalAlignment="Center" Margin="12,0,4,0" Foreground="White"/>
+                <TextBlock Text="{Binding EditingOrder.TotalAmount, StringFormat=\{0:0.##\}}"
+                           FontWeight="Bold" VerticalAlignment="Center" Foreground="White"/>
             </StackPanel>
-        </StackPanel>
+
+            <!-- Items grid -->
+            <DataGrid Grid.Row="1"
+                      ItemsSource="{Binding EditingItems}"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      HeadersVisibility="Column"
+                      Background="#D9D9D9"
+                      RowBackground="#D9D9D9"
+                      AlternatingRowBackground="#D9D9D9"
+                      BorderThickness="0"
+                      ColumnHeaderHeight="40"
+                      RowHeight="40"
+                      CellEditEnding="ItemsGrid_CellEditEnding">
+                <DataGrid.Resources>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="#6378FF"/>
+                        <Setter Property="Foreground" Value="White"/>
+                        <Setter Property="FontWeight" Value="Bold"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                    </Style>
+                </DataGrid.Resources>
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Product" Width="2*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding ProductName}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate>
+                                <ComboBox ItemsSource="{Binding DataContext.MenuProducts, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          DisplayMemberPath="Name"
+                                          SelectedValuePath="Id"
+                                          SelectedValue="{Binding ProductId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectionChanged="ProductCombo_SelectionChanged"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Qty"
+                                        Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Width="1*"/>
+
+                    <DataGridTextColumn Header="Unit Price"
+                                        Binding="{Binding UnitPrice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=\{0:0.##\}}"
+                                        Width="1.2*"/>
+
+                    <DataGridTextColumn Header="Subtotal"
+                                        IsReadOnly="True"
+                                        Binding="{Binding Subtotal, StringFormat=\{0:0.##\}}"
+                                        Width="1.2*"/>
+
+                    <DataGridTemplateColumn Header="Actions" Width="1*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="✖" ToolTip="Remove"
+                                        Click="RemoveLine_Click"
+                                        Padding="4" Margin="4,0,0,0"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Footer buttons -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                <Button Content="+ Add Item" Margin="0,0,8,0" Click="AddLine_Click"/>
+                <Button Content="Save" Background="#6378FF" Foreground="White" Margin="0,0,8,0" Click="SaveEditor_Click"/>
+                <Button Content="Cancel" Click="CancelEditor_Click"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

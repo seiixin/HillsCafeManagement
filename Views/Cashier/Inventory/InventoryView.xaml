@@ -3,134 +3,177 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#282c44">
 
-    <UserControl.Resources>
-        <!-- Structured Inventory Data -->
-        <XmlDataProvider x:Key="InventoryData" XPath="InventoryItems">
-            <x:XData>
-                <InventoryItems xmlns="">
-                    <Item>
-                        <Name>Espresso</Name>
-                        <Category>Beverage</Category>
-                        <Quantity>120</Quantity>
-                    </Item>
-                    <Item>
-                        <Name>Iced Latte</Name>
-                        <Category>Beverage</Category>
-                        <Quantity>80</Quantity>
-                    </Item>
-                    <Item>
-                        <Name>Croissant</Name>
-                        <Category>Bakery</Category>
-                        <Quantity>50</Quantity>
-                    </Item>
-                </InventoryItems>
-            </x:XData>
-        </XmlDataProvider>
-
-        <!-- Structured Expiry Alert Data -->
-        <XmlDataProvider x:Key="ExpiryAlertData" XPath="ExpiryItems">
-            <x:XData>
-                <ExpiryItems xmlns="">
-                    <Item>
-                        <Name>Milk</Name>
-                        <Quantity>20</Quantity>
-                        <Expiry>2025-08-01</Expiry>
-                        <Status>Expiring Soon</Status>
-                    </Item>
-                    <Item>
-                        <Name>Yogurt</Name>
-                        <Quantity>10</Quantity>
-                        <Expiry>2025-08-03</Expiry>
-                        <Status>Expired</Status>
-                    </Item>
-                </ExpiryItems>
-            </x:XData>
-        </XmlDataProvider>
-    </UserControl.Resources>
-
     <Grid Margin="20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <!-- Header -->
         <TextBlock Text="📦 Inventory &amp; Expiry Alerts"
                    FontSize="28"
                    FontWeight="Bold"
                    Foreground="White"
                    Margin="0,0,0,20" />
 
-        <StackPanel Grid.Row="1" Orientation="Vertical">
+        <!-- Main content area -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <!-- Inventory Table -->
-            <TextBlock Text="Inventory"
-                       FontSize="20"
-                       FontWeight="Bold"
-                       Foreground="White"
-                       Margin="0,0,0,10" />
+            <StackPanel Orientation="Vertical">
 
-            <DataGrid AutoGenerateColumns="False"
-                      IsReadOnly="True"
-                      CanUserAddRows="False"
-                      Background="#D9D9D9"
-                      Foreground="Black"
-                      RowBackground="#D9D9D9"
-                      AlternatingRowBackground="#D9D9D9"
-                      BorderThickness="0"
-                      GridLinesVisibility="None"
-                      ItemsSource="{Binding Source={StaticResource InventoryData}, XPath=Item}"
-                      ColumnHeaderHeight="40"
-                      RowHeight="40"
-                      Margin="0,0,0,20">
-                <DataGrid.Resources>
-                    <Style TargetType="DataGridColumnHeader">
-                        <Setter Property="Background" Value="#606cff"/>
-                        <Setter Property="Foreground" Value="White"/>
-                        <Setter Property="FontWeight" Value="Bold"/>
-                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                    </Style>
-                </DataGrid.Resources>
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Product Name" Binding="{Binding XPath=Name}" Width="*"/>
-                    <DataGridTextColumn Header="Category" Binding="{Binding XPath=Category}" Width="*"/>
-                    <DataGridTextColumn Header="Quantity" Binding="{Binding XPath=Quantity}" Width="*"/>
-                </DataGrid.Columns>
-            </DataGrid>
+                <!-- Search + Refresh (no Add, no Edit/Delete) -->
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-            <!-- Expiry Alerts Table -->
-            <TextBlock Text="Expiry Alerts"
-                       FontSize="20"
-                       FontWeight="Bold"
-                       Foreground="White"
-                       Margin="0,0,0,10" />
+                    <!-- Simple search (no external converter needed) -->
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Search Product Name or Category"
+                                   Foreground="#B0B0B0"
+                                   Margin="2,0,0,2"/>
+                        <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Height="30"
+                                 Background="#d1d3d4"
+                                 Foreground="Black"
+                                 Padding="5"
+                                 BorderThickness="0"/>
+                    </StackPanel>
 
-            <DataGrid AutoGenerateColumns="False"
-                      IsReadOnly="True"
-                      CanUserAddRows="False"
-                      Background="#D9D9D9"
-                      Foreground="Black"
-                      RowBackground="#D9D9D9"
-                      AlternatingRowBackground="#D9D9D9"
-                      BorderThickness="0"
-                      GridLinesVisibility="None"
-                      ItemsSource="{Binding Source={StaticResource ExpiryAlertData}, XPath=Item}"
-                      ColumnHeaderHeight="40"
-                      RowHeight="40">
-                <DataGrid.Resources>
-                    <Style TargetType="DataGridColumnHeader">
-                        <Setter Property="Background" Value="#0076a3"/>
-                        <Setter Property="Foreground" Value="White"/>
-                        <Setter Property="FontWeight" Value="Bold"/>
-                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                    </Style>
-                </DataGrid.Resources>
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Product Name" Binding="{Binding XPath=Name}" Width="*"/>
-                    <DataGridTextColumn Header="Quantity" Binding="{Binding XPath=Quantity}" Width="*"/>
-                    <DataGridTextColumn Header="Expiry Date" Binding="{Binding XPath=Expiry}" Width="*"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding XPath=Status}" Width="*"/>
-                </DataGrid.Columns>
-            </DataGrid>
-        </StackPanel>
+                    <!-- Only Refresh for cashier -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="🔄 Refresh"
+                                Command="{Binding RefreshCommand}"
+                                Background="#17a2b8"
+                                Foreground="White"
+                                Padding="10,5"
+                                Margin="5,0"
+                                BorderThickness="0"
+                                FontWeight="Bold"
+                                Cursor="Hand" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Inventory Table (read-only; no Actions column) -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="300">
+                    <DataGrid ItemsSource="{Binding FilteredItems}"
+                              SelectedItem="{Binding SelectedItem}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              Background="#D9D9D9"
+                              Foreground="Black"
+                              RowBackground="#D9D9D9"
+                              AlternatingRowBackground="#D9D9D9"
+                              BorderThickness="0"
+                              GridLinesVisibility="None"
+                              ColumnHeaderHeight="40"
+                              RowHeight="40"
+                              Margin="0,0,0,20">
+                        <DataGrid.Resources>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#606cff" />
+                                <Setter Property="Foreground" Value="White" />
+                                <Setter Property="FontWeight" Value="Bold" />
+                                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                            </Style>
+                        </DataGrid.Resources>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Product Name" Binding="{Binding ProductName}" Width="*" />
+                            <DataGridTextColumn Header="Category" Binding="{Binding CategoryName}" Width="*" />
+                            <DataGridTextColumn Header="Quantity" Binding="{Binding Quantity}" Width="*" />
+                            <DataGridTextColumn Header="Expiry Date" Binding="{Binding ExpiryDate, StringFormat='{}{0:yyyy-MM-dd}'}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </ScrollViewer>
+
+                <!-- Expiry Alerts header with count (same styling) -->
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="⚠️ Expiry Alerts"
+                               FontSize="20"
+                               FontWeight="Bold"
+                               Foreground="White" />
+
+                    <Border Grid.Column="1"
+                            Background="#dc3545"
+                            CornerRadius="10"
+                            Padding="8,4"
+                            Margin="10,0,0,0">
+                        <!-- If your VM exposes a dedicated expiring list, you can bind to it;
+                             kept same as admin for parity -->
+                        <TextBlock Text="{Binding InventoryItems.Count, StringFormat='{}{0} Items'}"
+                                   Foreground="White"
+                                   FontWeight="Bold"
+                                   FontSize="12" />
+                    </Border>
+                </Grid>
+
+                <!-- Expiry Alerts Table (read-only) -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="200">
+                    <DataGrid ItemsSource="{Binding InventoryItems}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              Background="#D9D9D9"
+                              Foreground="Black"
+                              RowBackground="#D9D9D9"
+                              AlternatingRowBackground="#D9D9D9"
+                              BorderThickness="0"
+                              GridLinesVisibility="None"
+                              ColumnHeaderHeight="40"
+                              RowHeight="40">
+                        <DataGrid.Resources>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#0076a3" />
+                                <Setter Property="Foreground" Value="White" />
+                                <Setter Property="FontWeight" Value="Bold" />
+                                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                            </Style>
+                        </DataGrid.Resources>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Product Name" Binding="{Binding ProductName}" Width="*" />
+                            <DataGridTextColumn Header="Quantity" Binding="{Binding Quantity}" Width="*" />
+                            <DataGridTextColumn Header="Expiry Date" Binding="{Binding ExpiryDate, StringFormat='{}{0:yyyy-MM-dd}'}" Width="*" />
+                            <DataGridTemplateColumn Header="Status" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border CornerRadius="3" Padding="5,2">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#28a745" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Expired">
+                                                            <Setter Property="Background" Value="#dc3545" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Expiring Soon">
+                                                            <Setter Property="Background" Value="#ffc107" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="{Binding Status}"
+                                                       Foreground="White"
+                                                       FontWeight="Bold"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </ScrollViewer>
+
+            </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

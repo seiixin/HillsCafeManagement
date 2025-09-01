@@ -4,33 +4,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="#2A2B40">
 
-    <UserControl.Resources>
-        <XmlDataProvider x:Key="OrdersData" XPath="Orders">
-            <x:XData>
-                <Orders xmlns="">
-                    <Order>
-                        <Date>2025-07-31</Date>
-                        <TableNumber>5</TableNumber>
-                        <CashierName>Alex</CashierName>
-                        <Status>Served</Status>
-                    </Order>
-                    <Order>
-                        <Date>2025-07-30</Date>
-                        <TableNumber>3</TableNumber>
-                        <CashierName>Jamie</CashierName>
-                        <Status>Pending</Status>
-                    </Order>
-                    <Order>
-                        <Date>2025-07-29</Date>
-                        <TableNumber>1</TableNumber>
-                        <CashierName>Pat</CashierName>
-                        <Status>Cancelled</Status>
-                    </Order>
-                </Orders>
-            </x:XData>
-        </XmlDataProvider>
-    </UserControl.Resources>
-
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -39,7 +12,7 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <TextBlock Text="🛒 Orders Management"
+        <TextBlock Text="🛒 Orders (Cashier)"
                    FontSize="28"
                    FontWeight="Bold"
                    Foreground="White"
@@ -53,36 +26,21 @@
             </Grid.ColumnDefinitions>
 
             <Border Background="#D9D9D9" CornerRadius="10" Padding="8" Margin="0,0,10,0">
-                <TextBox Background="Transparent"
+                <TextBox x:Name="SearchBox"
+                         Background="Transparent"
                          BorderThickness="0"
                          Foreground="Black"
                          FontSize="14"
-                         VerticalContentAlignment="Center" />
+                         VerticalContentAlignment="Center"
+                         TextChanged="SearchBox_TextChanged"
+                         ToolTip="Search by table, payment, status"/>
             </Border>
-
-            <Button Content="Add Order"
-                    Grid.Column="1"
-                    Background="#6378FF"
-                    Foreground="White"
-                    FontWeight="Bold"
-                    Padding="10,5"
-                    Cursor="Hand"
-                    BorderThickness="0">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Button.Template>
-            </Button>
         </Grid>
 
-        <!-- DataGrid -->
+        <!-- Orders Grid -->
         <DataGrid Grid.Row="2"
-                  ItemsSource="{Binding Source={StaticResource OrdersData}, XPath=Order}"
+                  x:Name="OrdersGrid"
+                  ItemsSource="{Binding Orders}"
                   AutoGenerateColumns="False"
                   CanUserAddRows="False"
                   IsReadOnly="True"
@@ -94,7 +52,9 @@
                   GridLinesVisibility="None"
                   ColumnHeaderHeight="40"
                   RowHeight="40"
-                  Margin="0,10,0,0">
+                  Margin="0,10,0,0"
+                  SelectionMode="Single"
+                  SelectionUnit="FullRow">
 
             <DataGrid.Resources>
                 <Style TargetType="DataGridColumnHeader">
@@ -103,27 +63,240 @@
                     <Setter Property="FontWeight" Value="Bold"/>
                     <Setter Property="HorizontalContentAlignment" Value="Center"/>
                 </Style>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="ToolTip" Value="Double-click a row to edit"/>
+                </Style>
             </DataGrid.Resources>
 
             <DataGrid.Columns>
-                <DataGridTemplateColumn Header="Info" Width="50">
+                <DataGridTextColumn Header="Date"
+                                    Binding="{Binding CreatedAt, StringFormat=\{0:MM/dd/yy HH:mm\}}"
+                                    Width="2*" />
+                <DataGridTextColumn Header="Table"
+                                    Binding="{Binding TableNumber}"
+                                    Width="1.2*" />
+                <DataGridTextColumn Header="Total"
+                                    Binding="{Binding TotalAmount, StringFormat=\{0:0.##\}}"
+                                    Width="1.2*" />
+                <DataGridTextColumn Header="Payment"
+                                    Binding="{Binding PaymentStatus}"
+                                    Width="1.2*" />
+                <DataGridTextColumn Header="Status"
+                                    Binding="{Binding OrderStatus}"
+                                    Width="1.4*" />
+
+                <DataGridTemplateColumn Header="Actions" Width="1.6*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Button Content="ℹ️"
-                                    ToolTip="View Order Info"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    FontSize="16"
-                                    Cursor="Hand"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Button Content="ℹ️"
+                                        ToolTip="View details"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        FontSize="16"
+                                        Cursor="Hand"
+                                        Margin="0,0,6,0"
+                                        Click="InfoOrder_Click"/>
+                                <Button Content="📝"
+                                        ToolTip="Edit"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        FontSize="16"
+                                        Cursor="Hand"
+                                        Margin="0,0,6,0"
+                                        Click="EditOrder_Click"/>
+                                <Button Content="🗑"
+                                        ToolTip="Delete"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        FontSize="16"
+                                        Cursor="Hand"
+                                        Click="DeleteOrder_Click"/>
+                            </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-
-                <DataGridTextColumn Header="Date" Binding="{Binding XPath=Date}" Width="*" />
-                <DataGridTextColumn Header="Table" Binding="{Binding XPath=TableNumber}" Width="*" />
-                <DataGridTextColumn Header="Cashier" Binding="{Binding XPath=CashierName}" Width="*" />
-                <DataGridTextColumn Header="Status" Binding="{Binding XPath=Status}" Width="*" />
             </DataGrid.Columns>
         </DataGrid>
+
+        <!-- READ-ONLY INFO OVERLAY -->
+        <Grid x:Name="InfoPanel"
+              Visibility="Collapsed"
+              Background="#AA000000"
+              Grid.RowSpan="3">
+            <Border Background="#FFFFFF" CornerRadius="12" Padding="16" MaxWidth="900" MaxHeight="620"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Vertical">
+                            <TextBlock Text="Order Details" FontSize="20" FontWeight="Bold" />
+                            <TextBlock Margin="0,6,0,0">
+                                <Run Text="Order #"/> <Run Text="{Binding InfoOrder.Id}" FontWeight="Bold"/>
+                                <Run Text=" • Date:"/> <Run Text="{Binding InfoOrder.CreatedAt, StringFormat=\{0:MM/dd/yy HH:mm\}}"/>
+                                <Run Text=" • Table:"/> <Run Text="{Binding InfoOrder.TableNumber}"/>
+                            </TextBlock>
+                            <TextBlock Margin="0,2,0,0">
+                                <Run Text="Payment:"/> <Run Text="{Binding InfoOrder.PaymentStatus}" FontWeight="Bold"/>
+                                <Run Text=" • Status:"/> <Run Text="{Binding InfoOrder.OrderStatus}" FontWeight="Bold"/>
+                                <Run Text=" • Total:"/> <Run Text="{Binding InfoOrder.TotalAmount, StringFormat=\{0:0.##\}}" FontWeight="Bold"/>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <Button Grid.Column="1" Content="✖" Width="28" Height="28" VerticalAlignment="Top" Click="CloseInfo_Click"/>
+                    </Grid>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding InfoItems}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Product" Binding="{Binding ProductName}" Width="2*" />
+                            <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="1.2*" />
+                            <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="0.8*" />
+                            <DataGridTextColumn Header="Unit Price" Binding="{Binding UnitPrice, StringFormat=\{0:0.##\}}" Width="1.2*" />
+                            <DataGridTextColumn Header="Subtotal" Binding="{Binding Subtotal, StringFormat=\{0:0.##\}}" Width="1.2*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Content="Close" Click="CloseInfo_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- EDITOR OVERLAY -->
+        <Grid x:Name="EditorPanel"
+              Visibility="Collapsed"
+              Background="#AA000000"
+              Grid.RowSpan="3">
+            <Border Background="#FFFFFF" CornerRadius="12" Padding="16" MaxWidth="900" MaxHeight="620"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header row with table + payment + status + total -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Top">
+                        <TextBlock Text="Edit Order" FontSize="20" FontWeight="Bold" Margin="0,0,12,0"/>
+
+                        <!-- Table -->
+                        <TextBlock Text="•  Table:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox Width="180"
+                                  ItemsSource="{Binding TablesForPicker}"
+                                  SelectedValuePath="TableNumber"
+                                  SelectedValue="{Binding EditingOrder.TableNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  IsTextSearchEnabled="True"
+                                  TextSearch.TextPath="TableNumber">
+                            <ComboBox.ItemContainerStyle>
+                                <Style TargetType="ComboBoxItem">
+                                    <Setter Property="IsEnabled" Value="{Binding Selectable}"/>
+                                    <Setter Property="ToolTip"    Value="{Binding Status}"/>
+                                </Style>
+                            </ComboBox.ItemContainerStyle>
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding TableNumber}" FontWeight="Bold"/>
+                                        <TextBlock Text="  •  "/>
+                                        <TextBlock Text="{Binding Status}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <!-- Payment -->
+                        <TextBlock Text="•  Payment:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox Width="120"
+                                  ItemsSource="{Binding PaymentStatuses}"
+                                  SelectedItem="{Binding EditingOrder.PaymentStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <!-- Status -->
+                        <TextBlock Text="•  Status:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox Width="140"
+                                  ItemsSource="{Binding OrderStatuses}"
+                                  SelectedItem="{Binding EditingOrder.OrderStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <!-- Total -->
+                        <TextBlock Text="•  Total:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBlock Text="{Binding EditingOrder.TotalAmount, StringFormat=\{0:0.##\}}"
+                                   FontWeight="Bold" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Items grid -->
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding EditingItems}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              CellEditEnding="ItemsGrid_CellEditEnding">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Product" Width="2*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ProductName}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding DataContext.MenuProducts, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                  DisplayMemberPath="Name"
+                                                  SelectedValuePath="Id"
+                                                  SelectedValue="{Binding ProductId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  SelectionChanged="ProductCombo_SelectionChanged"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Qty"
+                                                Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Width="1*"/>
+
+                            <DataGridTextColumn Header="Unit Price"
+                                                Binding="{Binding UnitPrice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=\{0:0.##\}}"
+                                                Width="1.2*"/>
+
+                            <DataGridTextColumn Header="Subtotal"
+                                                IsReadOnly="True"
+                                                Binding="{Binding Subtotal, StringFormat=\{0:0.##\}}"
+                                                Width="1.2*"/>
+
+                            <DataGridTemplateColumn Header="Actions" Width="1*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="✖" ToolTip="Remove"
+                                                Click="RemoveLine_Click"
+                                                Padding="4" Margin="4,0,0,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Footer buttons -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Content="+ Add Item" Margin="0,0,8,0" Click="AddLine_Click"/>
+                        <Button Content="Save" Background="#6378FF" Foreground="White" Margin="0,0,8,0" Click="SaveEditor_Click"/>
+                        <Button Content="Cancel" Click="CancelEditor_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
