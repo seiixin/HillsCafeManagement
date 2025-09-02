@@ -153,9 +153,10 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <!-- IMPORTANT: pass the numeric ReceiptId to the VM -->
                                 <Button Content="🖨 Print"
                                         Command="{Binding DataContext.PrintCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}"
+                                        CommandParameter="{Binding ReceiptId}"
                                         Background="#F59E0B"
                                         Foreground="White"
                                         Padding="8,4"

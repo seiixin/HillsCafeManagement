@@ -10,6 +10,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -27,7 +28,7 @@ namespace HillsCafeManagement.ViewModels
             {
                 if (Set(ref _searchText, value))
                 {
-                    // live search; remove if you want explicit Search button only
+                    // live search (optional)
                     LoadReceipts(_searchText);
                 }
             }
@@ -61,7 +62,9 @@ namespace HillsCafeManagement.ViewModels
             AddCommand = new RelayCommand(_ => AddReceipt(), _ => true);
             EditCommand = new RelayCommand(_ => EditReceipt(), _ => Selected != null);
             DeleteCommand = new RelayCommand(_ => DeleteReceipt(), _ => Selected != null);
-            PrintCommand = new RelayCommand(_ => PrintReceipt(), _ => Selected != null);
+
+            // IMPORTANT: PrintCommand now accepts parameter
+            PrintCommand = new RelayCommand(p => PrintReceipt(p));
 
             LoadReceipts();
         }
@@ -71,8 +74,8 @@ namespace HillsCafeManagement.ViewModels
         {
             try
             {
-                // Auto-create receipts for any Paid orders missing a receipt
-                try { ReceiptsServices.EnsureAllForPaidOrders(); } catch { /* non-fatal */ }
+                // Non-fatal bulk sync so Paid orders have receipts
+                try { ReceiptsServices.EnsureAllForPaidOrders(); } catch { /* ignore */ }
 
                 var data = ReceiptsServices.GetAllReceipts(term);
                 Receipts.Clear();
@@ -92,8 +95,8 @@ namespace HillsCafeManagement.ViewModels
                 // Stub: replace with your editor dialog
                 var newModel = new ReceiptsModel
                 {
-                    OrderId = 0,   // TODO from UI
-                    Amount = 0m    // TODO from UI
+                    OrderId = 0,
+                    Amount = 0m
                 };
 
                 var newId = ReceiptsServices.Create(newModel);
@@ -159,72 +162,83 @@ namespace HillsCafeManagement.ViewModels
         }
 
         // ----------- Print / Export flow -----------
-        private void PrintReceipt()
+        // Accepts CommandParameter:
+        //  - int receiptId
+        //  - ReceiptsModel row
+        //  - or falls back to Selected
+        private void PrintReceipt(object? parameter)
         {
-            if (Selected == null)
-            {
-                MessageBox.Show("Select a receipt first.", "Print",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            // Load full details (header + items)
-            var details = ReceiptsServices.GetDetailsByReceiptId(Selected.ReceiptId);
-            if (details == null)
-            {
-                MessageBox.Show("Receipt details not found.", "Print",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            // 1) Info popup
-            var h = details.Header;
-            var info =
-                $"Receipt ID : {h.ReceiptId}\n" +
-                $"Order ID   : {h.OrderId}\n" +
-                $"Table      : {h.TableNumber}\n" +
-                $"Date       : {h.Date}\n" +
-                $"Amount     : {h.Amount:0.##}\n" +
-                $"Lines      : {details.Lines.Count}\n\n" +
-                "Do you want to export this receipt?";
-            MessageBox.Show(info, "Receipt Info", MessageBoxButton.OK, MessageBoxImage.Information);
-
-            // 2) Confirmation & choice (Yes=PDF, No=JPG)
-            var choice = MessageBox.Show(
-                "Choose export format:\n\nYes = PDF (via Print dialog)\nNo = JPG (save image)\nCancel = Do nothing",
-                "Export Receipt",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Question);
-
-            if (choice == MessageBoxResult.Cancel) return;
-
             try
             {
+                int receiptId = 0;
+
+                if (parameter is int idParam) receiptId = idParam;
+                else if (parameter is ReceiptsModel row) receiptId = row.ReceiptId;
+                else if (Selected != null) receiptId = Selected.ReceiptId;
+
+                if (receiptId <= 0)
+                {
+                    MessageBox.Show("Select a receipt to print.", "Print",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                // Always fetch fresh details (avoids stale data after sync)
+                var details = ReceiptsServices.GetDetailsByReceiptId(receiptId);
+                if (details == null)
+                {
+                    MessageBox.Show("Receipt details not found.", "Print",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Info popup (optional — keep if you want)
+                var h = details.Header;
+                var info =
+                    $"Receipt ID : {h.ReceiptId}\n" +
+                    $"Order ID   : {h.OrderId}\n" +
+                    $"Table      : {h.TableNumber}\n" +
+                    $"Date       : {h.Date}\n" +
+                    $"Amount     : {h.Amount:0.##}\n" +
+                    $"Lines      : {details.Lines.Count}\n\n" +
+                    "Do you want to export this receipt?";
+                MessageBox.Show(info, "Receipt Info", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Choose export target
+                var choice = MessageBox.Show(
+                    "Choose export format:\n\nYes = PDF (Print dialog)\nNo = JPG (save image)\nCancel = Do nothing",
+                    "Export Receipt",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (choice == MessageBoxResult.Cancel) return;
+
                 if (choice == MessageBoxResult.Yes)
+                {
                     ExportReceiptAsPdf(details);
+                }
                 else if (choice == MessageBoxResult.No)
+                {
                     ExportReceiptAsJpg(details);
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Export failed.\n{ex.Message}", "Export",
+                MessageBox.Show($"Print failed:\n{ex.Message}", "Print",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void ExportReceiptAsPdf(ReceiptDetailsModel d)
         {
-            var visual = BuildReceiptVisual(d);
+            var doc = BuildReceiptDocument(d);
             var dlg = new PrintDialog();
             if (dlg.ShowDialog() == true)
             {
-                var size = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
-                visual.Measure(size);
-                visual.Arrange(new Rect(new Point(0, 0), size));
-                visual.UpdateLayout();
-
-                // Pick "Microsoft Print to PDF" to generate a PDF file
-                dlg.PrintVisual(visual, $"Receipt #{d.Header.ReceiptId}");
+                doc.PageHeight = dlg.PrintableAreaHeight;
+                doc.PageWidth = dlg.PrintableAreaWidth;
+                dlg.PrintDocument(((IDocumentPaginatorSource)doc).DocumentPaginator,
+                    $"Receipt #{d.Header.ReceiptId}");
             }
         }
 
@@ -259,6 +273,7 @@ namespace HillsCafeManagement.ViewModels
             }
         }
 
+        // ----------- Builders (Visual + FlowDocument) -----------
         private FrameworkElement BuildReceiptVisual(ReceiptDetailsModel d)
         {
             var h = d.Header;
@@ -269,15 +284,13 @@ namespace HillsCafeManagement.ViewModels
                 Margin = new Thickness(24)
             };
 
-            // Rows: title + meta + items header + items + total + footer
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 0 title
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 1 meta
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 2 items header
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 3 items grid
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 3 items
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 4 total
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 5 footer
 
-            // Title
             var title = new TextBlock
             {
                 Text = "Hills Café — Receipt",
@@ -288,7 +301,6 @@ namespace HillsCafeManagement.ViewModels
             Grid.SetRow(title, 0);
             root.Children.Add(title);
 
-            // Meta lines
             var meta = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 12) };
             meta.Children.Add(new TextBlock { Text = $"Receipt ID : {h.ReceiptId}", FontSize = 16 });
             meta.Children.Add(new TextBlock { Text = $"Order ID   : {h.OrderId}", FontSize = 16 });
@@ -297,7 +309,6 @@ namespace HillsCafeManagement.ViewModels
             Grid.SetRow(meta, 1);
             root.Children.Add(meta);
 
-            // Items header
             var hdr = new Grid { Margin = new Thickness(0, 6, 0, 6) };
             hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) }); // Product
             hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Qty
@@ -312,7 +323,6 @@ namespace HillsCafeManagement.ViewModels
             Grid.SetRow(hdr, 2);
             root.Children.Add(hdr);
 
-            // Items body
             var items = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
             foreach (var line in d.Lines)
             {
@@ -331,7 +341,6 @@ namespace HillsCafeManagement.ViewModels
             Grid.SetRow(items, 3);
             root.Children.Add(items);
 
-            // Totals
             var total = new TextBlock
             {
                 Text = $"TOTAL: {d.GrandTotal:0.##}",
@@ -343,7 +352,6 @@ namespace HillsCafeManagement.ViewModels
             Grid.SetRow(total, 4);
             root.Children.Add(total);
 
-            // Footer
             var footer = new TextBlock
             {
                 Text = "Thank you for dining with us!",
@@ -368,6 +376,81 @@ namespace HillsCafeManagement.ViewModels
                 Grid.SetColumn(tb, col);
                 return tb;
             }
+        }
+
+        private FlowDocument BuildReceiptDocument(ReceiptDetailsModel d)
+        {
+            var fd = new FlowDocument
+            {
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 12,
+                PagePadding = new Thickness(30),
+                ColumnWidth = double.PositiveInfinity,
+                TextAlignment = TextAlignment.Left
+            };
+
+            var title = new Paragraph(new Bold(new Run("Hills Café — Receipt")))
+            { FontSize = 18, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 10) };
+            fd.Blocks.Add(title);
+
+            var h = d.Header;
+            fd.Blocks.Add(new Paragraph(new Run($"Receipt #: {h.ReceiptId}")));
+            fd.Blocks.Add(new Paragraph(new Run($"Order   #: {h.OrderId}")));
+            fd.Blocks.Add(new Paragraph(new Run($"Table     : {h.TableNumber}")));
+            fd.Blocks.Add(new Paragraph(new Run($"Date      : {h.Date}")));
+            fd.Blocks.Add(new Paragraph(new Run(" ")));
+
+            var table = new Table { CellSpacing = 0 };
+            table.Columns.Add(new TableColumn { Width = new GridLength(260) });
+            table.Columns.Add(new TableColumn { Width = new GridLength(60) });
+            table.Columns.Add(new TableColumn { Width = new GridLength(100) });
+            table.Columns.Add(new TableColumn { Width = new GridLength(120) });
+            table.RowGroups.Add(new TableRowGroup());
+
+            var headerRow = new TableRow();
+            headerRow.Cells.Add(HeaderCell("Product"));
+            headerRow.Cells.Add(HeaderCell("Qty"));
+            headerRow.Cells.Add(HeaderCell("Unit"));
+            headerRow.Cells.Add(HeaderCell("Subtotal"));
+            table.RowGroups[0].Rows.Add(headerRow);
+
+            foreach (var line in d.Lines)
+            {
+                var row = new TableRow();
+                row.Cells.Add(Cell(line.ProductName ?? "(item)"));
+                row.Cells.Add(Cell(line.Quantity.ToString()));
+                row.Cells.Add(Cell(line.UnitPrice.ToString("0.##")));
+                row.Cells.Add(Cell((line.UnitPrice * line.Quantity).ToString("0.##")));
+                table.RowGroups[0].Rows.Add(row);
+            }
+
+            fd.Blocks.Add(table);
+
+            var totalPara = new Paragraph { TextAlignment = TextAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+            totalPara.Inlines.Add(new Bold(new Run($"Total: {d.GrandTotal:0.##}")));
+            fd.Blocks.Add(totalPara);
+
+            var paidPara = new Paragraph { TextAlignment = TextAlignment.Right };
+            paidPara.Inlines.Add(new Run($"Amount Paid: {h.Amount:0.##}"));
+            fd.Blocks.Add(paidPara);
+
+            fd.Blocks.Add(new Paragraph(new Run("Thank you!")));
+            return fd;
+
+            // helpers
+            static TableCell HeaderCell(string text) =>
+                new TableCell(new Paragraph(new Bold(new Run(text))))
+                {
+                    BorderBrush = Brushes.Black,
+                    BorderThickness = new Thickness(0, 0, 0, 1),
+                    Padding = new Thickness(0, 2, 0, 4)
+                };
+
+            static TableCell Cell(string text) =>
+                new TableCell(new Paragraph(new Run(text)))
+                {
+                    Padding = new Thickness(0, 2, 0, 2)
+                };
         }
 
         // ----------- INotifyPropertyChanged -----------

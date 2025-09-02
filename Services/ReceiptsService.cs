@@ -14,7 +14,10 @@ namespace HillsCafeManagement.Services
         // BASIC CRUD + SEARCH
         // ======================================================
 
-        // READ all (optional search/limit)
+        /// <summary>
+        /// Get all receipts, optional search & limit.
+        /// Search applies to OrderId, TableNumber (string-like), and Date(MM/dd/yy).
+        /// </summary>
         public static List<ReceiptsModel> GetAllReceipts(string? searchTerm = null, int? limit = null)
         {
             var receipts = new List<ReceiptsModel>();
@@ -24,20 +27,20 @@ namespace HillsCafeManagement.Services
 
             var sql = @"
                 SELECT 
-                    r.id AS ReceiptId, 
-                    r.order_id AS OrderId, 
-                    COALESCE(c.table_id,0) AS TableNumber, 
-                    DATE_FORMAT(r.issued_at, '%m/%d/%y') AS Date, 
-                    r.amount_paid AS Amount
+                    r.id                                  AS ReceiptId, 
+                    r.order_id                            AS OrderId, 
+                    /* may be varchar or int in DB; force as text for searching */
+                    COALESCE(o.table_number, '')          AS TableNumber,
+                    DATE_FORMAT(r.issued_at, '%m/%d/%y')  AS Date, 
+                    r.amount_paid                         AS Amount
                 FROM receipts r
-                LEFT JOIN orders o ON r.order_id = o.id
-                LEFT JOIN customers c ON o.customer_id = c.id";
+                LEFT JOIN orders o ON r.order_id = o.id";
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 sql += @"
                 WHERE CAST(r.order_id AS CHAR) LIKE @t
-                   OR CAST(COALESCE(c.table_id,0) AS CHAR) LIKE @t
+                   OR COALESCE(o.table_number,'') LIKE @t
                    OR DATE_FORMAT(r.issued_at, '%m/%d/%y') LIKE @t";
             }
 
@@ -48,7 +51,7 @@ namespace HillsCafeManagement.Services
             if (!string.IsNullOrWhiteSpace(searchTerm))
                 cmd.Parameters.AddWithValue("@t", $"%{searchTerm}%");
             if (limit.HasValue && limit > 0)
-                cmd.Parameters.AddWithValue("@limit", limit);
+                cmd.Parameters.AddWithValue("@limit", limit.Value);
 
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
@@ -59,7 +62,9 @@ namespace HillsCafeManagement.Services
             return receipts;
         }
 
-        // READ one by receipt id
+        /// <summary>
+        /// Get one receipt by receipt id.
+        /// </summary>
         public static ReceiptsModel? GetById(int id)
         {
             using var conn = new MySqlConnection(ConnectionString);
@@ -67,14 +72,13 @@ namespace HillsCafeManagement.Services
 
             var sql = @"
                 SELECT 
-                    r.id AS ReceiptId, 
-                    r.order_id AS OrderId, 
-                    COALESCE(c.table_id,0) AS TableNumber, 
-                    DATE_FORMAT(r.issued_at, '%m/%d/%y') AS Date, 
-                    r.amount_paid AS Amount
+                    r.id                                  AS ReceiptId, 
+                    r.order_id                            AS OrderId, 
+                    COALESCE(o.table_number, '')          AS TableNumber, 
+                    DATE_FORMAT(r.issued_at, '%m/%d/%y')  AS Date, 
+                    r.amount_paid                         AS Amount
                 FROM receipts r
                 LEFT JOIN orders o ON r.order_id = o.id
-                LEFT JOIN customers c ON o.customer_id = c.id
                 WHERE r.id = @id
                 LIMIT 1;";
 
@@ -85,36 +89,42 @@ namespace HillsCafeManagement.Services
             return reader.Read() ? Map(reader) : null;
         }
 
-        // READ one by order id (convenience)
+        /// <summary>
+        /// Get one receipt by order id (convenience).
+        /// </summary>
         public static ReceiptsModel? GetByOrderId(int orderId)
         {
             using var conn = new MySqlConnection(ConnectionString);
             conn.Open();
+
             var sql = @"
                 SELECT 
-                    r.id AS ReceiptId, 
-                    r.order_id AS OrderId, 
-                    COALESCE(c.table_id,0) AS TableNumber, 
-                    DATE_FORMAT(r.issued_at, '%m/%d/%y') AS Date, 
-                    r.amount_paid AS Amount
+                    r.id                                  AS ReceiptId, 
+                    r.order_id                            AS OrderId, 
+                    COALESCE(o.table_number, '')          AS TableNumber, 
+                    DATE_FORMAT(r.issued_at, '%m/%d/%y')  AS Date, 
+                    r.amount_paid                         AS Amount
                 FROM receipts r
                 LEFT JOIN orders o ON r.order_id = o.id
-                LEFT JOIN customers c ON o.customer_id = c.id
                 WHERE r.order_id = @oid
                 LIMIT 1;";
+
             using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@oid", orderId);
+
             using var reader = cmd.ExecuteReader();
             return reader.Read() ? Map(reader) : null;
         }
 
-        // CREATE (basic)
+        /// <summary>
+        /// Create a receipt (issued_at = NOW()).
+        /// </summary>
         public static int Create(ReceiptsModel model)
         {
             using var conn = new MySqlConnection(ConnectionString);
             conn.Open();
 
-            var sql = @"
+            const string sql = @"
                 INSERT INTO receipts (order_id, amount_paid, issued_at)
                 VALUES (@orderId, @amount, NOW());
                 SELECT LAST_INSERT_ID();";
@@ -126,13 +136,15 @@ namespace HillsCafeManagement.Services
             return Convert.ToInt32(cmd.ExecuteScalar());
         }
 
-        // UPDATE (amount/order_id)
+        /// <summary>
+        /// Update receipt fields.
+        /// </summary>
         public static void Update(ReceiptsModel model)
         {
             using var conn = new MySqlConnection(ConnectionString);
             conn.Open();
 
-            var sql = @"
+            const string sql = @"
                 UPDATE receipts
                 SET order_id = @orderId,
                     amount_paid = @amount
@@ -146,37 +158,41 @@ namespace HillsCafeManagement.Services
             cmd.ExecuteNonQuery();
         }
 
-        // DELETE by receipt id
+        /// <summary>
+        /// Delete by receipt id.
+        /// </summary>
         public static void Delete(int id)
         {
             using var conn = new MySqlConnection(ConnectionString);
             conn.Open();
 
-            var sql = "DELETE FROM receipts WHERE id = @id;";
+            const string sql = "DELETE FROM receipts WHERE id = @id;";
             using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@id", id);
             cmd.ExecuteNonQuery();
         }
 
-        // DELETE by order id (convenience)
+        /// <summary>
+        /// Delete by order id (convenience).
+        /// </summary>
         public static void DeleteByOrderId(int orderId)
         {
             using var conn = new MySqlConnection(ConnectionString);
             conn.Open();
 
-            var sql = "DELETE FROM receipts WHERE order_id = @oid;";
+            const string sql = "DELETE FROM receipts WHERE order_id = @oid;";
             using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@oid", orderId);
             cmd.ExecuteNonQuery();
         }
 
         // ======================================================
-        // AUTO-SYNC HELPERS (so PAID orders appear as receipts)
+        // AUTO-SYNC HELPERS (PAID orders => receipts)
         // ======================================================
 
         /// <summary>
         /// Ensure a receipt exists for an order IF the order is Paid.
-        /// Returns the existing/new receipt id, or null if order is not Paid.
+        /// Returns receipt id, or null if order is not Paid.
         /// </summary>
         public static int? EnsureForPaidOrder(int orderId)
         {
@@ -201,37 +217,35 @@ namespace HillsCafeManagement.Services
             if (!string.Equals(paymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
                 return null; // not paid -> no receipt
 
-            // 2) If receipt already exists, return it
-            using (var cmd = new MySqlCommand("SELECT id FROM receipts WHERE order_id=@oid LIMIT 1", conn))
+            // 2) If receipt exists, return it (and sync amount)
+            using (var check = new MySqlCommand("SELECT id FROM receipts WHERE order_id=@oid LIMIT 1", conn))
             {
-                cmd.Parameters.AddWithValue("@oid", orderId);
-                var existing = cmd.ExecuteScalar();
+                check.Parameters.AddWithValue("@oid", orderId);
+                var existing = check.ExecuteScalar();
                 if (existing != null && existing != DBNull.Value)
                 {
-                    // Optional: keep amount in sync with order.total_amount
                     using var upd = new MySqlCommand("UPDATE receipts SET amount_paid=@amt WHERE id=@rid", conn);
                     upd.Parameters.AddWithValue("@amt", total);
                     upd.Parameters.AddWithValue("@rid", Convert.ToInt32(existing));
                     upd.ExecuteNonQuery();
-
                     return Convert.ToInt32(existing);
                 }
             }
 
-            // 3) Create receipt (issued now, amount from order)
-            using (var cmd = new MySqlCommand(@"
+            // 3) Create receipt now
+            using (var ins = new MySqlCommand(@"
                 INSERT INTO receipts (order_id, amount_paid, issued_at)
                 VALUES (@oid, @amt, NOW());
                 SELECT LAST_INSERT_ID();", conn))
             {
-                cmd.Parameters.AddWithValue("@oid", orderId);
-                cmd.Parameters.AddWithValue("@amt", total);
-                return Convert.ToInt32(cmd.ExecuteScalar());
+                ins.Parameters.AddWithValue("@oid", orderId);
+                ins.Parameters.AddWithValue("@amt", total);
+                return Convert.ToInt32(ins.ExecuteScalar());
             }
         }
 
         /// <summary>
-        /// Sync a single order: if Paid -> ensure receipt exists; if Unpaid -> delete any existing receipt.
+        /// Sync one order: Paid -> ensure receipt; else -> delete any receipt.
         /// </summary>
         public static void SyncForOrder(int orderId)
         {
@@ -257,15 +271,14 @@ namespace HillsCafeManagement.Services
         }
 
         /// <summary>
-        /// Bulk: create receipts for any PAID orders that don't yet have one.
-        /// (Safe to run before listing receipts.)
+        /// Bulk ensure receipts for any PAID orders lacking one.
         /// </summary>
         public static int EnsureAllForPaidOrders()
         {
             using var conn = new MySqlConnection(ConnectionString);
             conn.Open();
 
-            var sql = @"
+            const string sql = @"
                 INSERT INTO receipts (order_id, amount_paid, issued_at)
                 SELECT o.id, COALESCE(o.total_amount,0), NOW()
                 FROM orders o
@@ -273,7 +286,7 @@ namespace HillsCafeManagement.Services
                 WHERE o.payment_status = 'Paid' AND r.id IS NULL;";
 
             using var cmd = new MySqlCommand(sql, conn);
-            return cmd.ExecuteNonQuery(); // number of inserted receipts
+            return cmd.ExecuteNonQuery();
         }
 
         // ======================================================
@@ -285,17 +298,16 @@ namespace HillsCafeManagement.Services
             using var conn = new MySqlConnection(ConnectionString);
             conn.Open();
 
-            // 1) Header
-            var headerSql = @"
+            // 1) Header (table_number may be string in DB; we’ll parse to int)
+            const string headerSql = @"
                 SELECT 
-                    r.id AS ReceiptId,
-                    r.order_id AS OrderId,
-                    COALESCE(c.table_id,0) AS TableNumber,
-                    DATE_FORMAT(r.issued_at, '%m/%d/%y') AS Date,
-                    r.amount_paid AS Amount
+                    r.id                                  AS ReceiptId,
+                    r.order_id                            AS OrderId,
+                    COALESCE(o.table_number, '')          AS TableNumber,
+                    DATE_FORMAT(r.issued_at, '%m/%d/%y')  AS Date,
+                    r.amount_paid                         AS Amount
                 FROM receipts r
                 LEFT JOIN orders o ON o.id = r.order_id
-                LEFT JOIN customers c ON c.id = o.customer_id
                 WHERE r.id = @rid
                 LIMIT 1;";
 
@@ -313,7 +325,7 @@ namespace HillsCafeManagement.Services
             var details = new ReceiptDetailsModel { Header = header };
 
             // 2) Lines
-            var linesSql = @"
+            const string linesSql = @"
                 SELECT 
                     oi.product_id        AS ProductId,
                     m.name               AS ProductName,
@@ -355,17 +367,43 @@ namespace HillsCafeManagement.Services
         {
             ReceiptId = r.GetInt32(r.GetOrdinal("ReceiptId")),
             OrderId = r.GetInt32(r.GetOrdinal("OrderId")),
-            TableNumber = r.IsDBNull(r.GetOrdinal("TableNumber")) ? 0 : r.GetInt32(r.GetOrdinal("TableNumber")),
+            // TableNumber in model is INT. DB may give us string or int. Handle both.
+            TableNumber = ReadTableNumberAsInt(r, "TableNumber"),
             Date = r.IsDBNull(r.GetOrdinal("Date")) ? "" : r.GetString(r.GetOrdinal("Date")),
             Amount = r.IsDBNull(r.GetOrdinal("Amount")) ? 0m : r.GetDecimal(r.GetOrdinal("Amount"))
         };
+
+        private static int ReadTableNumberAsInt(IDataRecord r, string col)
+        {
+            int ord = r.GetOrdinal(col);
+            if (r.IsDBNull(ord)) return 0;
+
+            var type = r.GetFieldType(ord);
+            try
+            {
+                if (type == typeof(int) || type == typeof(long) || type == typeof(short) || type == typeof(byte))
+                {
+                    return Convert.ToInt32(r.GetValue(ord));
+                }
+                if (type == typeof(string))
+                {
+                    var s = r.GetString(ord);
+                    return int.TryParse(s, out var n) ? n : 0;
+                }
+                // fallback for other numeric types
+                return Convert.ToInt32(r.GetValue(ord));
+            }
+            catch
+            {
+                return 0;
+            }
+        }
     }
 }
 
-/* -----------------------------------------------------------------
-   Lightweight DTOs for full-receipt export (kept here to avoid
-   new files; move to Models\ later if you prefer).
-------------------------------------------------------------------*/
+// -----------------------------------------------------------------
+// Lightweight DTOs for full-receipt export (unchanged)
+// -----------------------------------------------------------------
 namespace HillsCafeManagement.Models
 {
     public class ReceiptDetailsModel

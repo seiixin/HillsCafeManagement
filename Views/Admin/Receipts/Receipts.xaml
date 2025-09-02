@@ -1,11 +1,7 @@
 ﻿<UserControl x:Class="HillsCafeManagement.Views.Admin.Receipts.Receipts"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="clr-namespace:HillsCafeManagement.ViewModels"
              Background="#2A2B40">
-
-    <!-- deleted ViewModel -->
-
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -157,15 +153,16 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <!-- Uses VM command; row selection is already bound via SelectedItem -->
+                                <!-- IMPORTANT: pass the ReceiptId (int) to the VM -->
                                 <Button Content="🖨 Print"
                                         Command="{Binding DataContext.PrintCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}"
+                                        CommandParameter="{Binding ReceiptId}"
                                         Background="#F59E0B"
                                         Foreground="White"
                                         Padding="8,4"
                                         BorderThickness="0"
-                                        Cursor="Hand"/>
+                                        Cursor="Hand"
+                                        ToolTip="Print / Export receipt"/>
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
