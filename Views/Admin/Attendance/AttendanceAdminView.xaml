@@ -3,14 +3,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:helpers="clr-namespace:HillsCafeManagement.Helpers"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:av="http://schemas.microsoft.com/expression/blend/2008"
-             mc:Ignorable="av"
-             Background="#2A2B40" av:DesignHeight="450" av:DesignWidth="800">
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:models="clr-namespace:HillsCafeManagement.Models"
+             mc:Ignorable="d"
+             Background="#2A2B40"
+             d:DesignHeight="600"
+             d:DesignWidth="900">
 
+    <!-- ========================= Resources ========================= -->
     <UserControl.Resources>
         <helpers:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibilityConverter" />
 
-        <!-- Reusable Button Style with hover effect -->
+        <!-- Buttons -->
         <Style x:Key="StyledButton" TargetType="Button">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Padding" Value="10,5"/>
@@ -25,7 +29,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter x:Name="MyBorder" Property="Background" Value="#4c5fe0"/>
+                                <Setter Property="Opacity" Value="0.9"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.5"/>
@@ -35,71 +39,215 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- DataGrid header style -->
+        <Style x:Key="GridHeader" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#6378FF"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Height" Value="40"/>
+        </Style>
+
+        <!-- Limit Status edits to Pending/Approved/Rejected -->
+        <x:Array x:Key="EditableStatuses" Type="{x:Type models:LeaveStatus}">
+            <models:LeaveStatus>Pending</models:LeaveStatus>
+            <models:LeaveStatus>Approved</models:LeaveStatus>
+            <models:LeaveStatus>Rejected</models:LeaveStatus>
+        </x:Array>
+
+        <!-- ComboBox look/behavior inside cells -->
+        <Style x:Key="CellCombo" TargetType="ComboBox">
+            <Setter Property="IsEditable" Value="False"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+        </Style>
+        <Style x:Key="CellComboEditing" TargetType="ComboBox" BasedOn="{StaticResource CellCombo}">
+            <Setter Property="SelectedItem" Value="{Binding Status, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+        </Style>
     </UserControl.Resources>
 
+    <!-- ========================= Layout ========================= -->
     <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Header -->
-        <TextBlock Text="📅 Attendance Records"
+        <TextBlock Text="📅 Attendance &amp; Leave Admin"
                    FontSize="28"
                    FontWeight="Bold"
                    Foreground="White"
-                   Margin="0,0,0,20"/>
+                   Margin="0,0,0,16"/>
 
-        <!-- Filter Controls -->
-        <Grid Grid.Row="1" Margin="0,0,0,10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <TabControl Margin="0,48,0,0" Background="Transparent" BorderThickness="0" Padding="0">
 
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                <TextBlock Text="Date:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                <DatePicker SelectedDate="{Binding FilterDate}" Width="140" Margin="0,0,10,0"/>
-                <TextBlock Text="Employee ID:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                <TextBox Text="{Binding FilterEmployeeId}" Width="120" Margin="0,0,10,0"/>
-            </StackPanel>
+            <!-- ===================== ATTENDANCE ===================== -->
+            <TabItem Header="Attendance">
+                <Grid Background="Transparent" Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-            <Button Content="Filter" Grid.Column="1" Command="{Binding FilterCommand}"
-                    Background="#6378FF" Style="{StaticResource StyledButton}"/>
-        </Grid>
+                    <!-- Filters -->
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-        <!-- DataGrid -->
-        <DataGrid Grid.Row="2" ItemsSource="{Binding Attendances}" AutoGenerateColumns="False" CanUserAddRows="False"
-                  IsReadOnly="False" Background="#2A2B40" Foreground="Black" RowBackground="#D9D9D9"
-                  AlternatingRowBackground="#D9D9D9" BorderThickness="0" GridLinesVisibility="None"
-                  ColumnHeaderHeight="40" RowHeight="40" Margin="0,10,0,10" SelectedItem="{Binding SelectedAttendance}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                            <TextBlock Text="Date:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <DatePicker SelectedDate="{Binding FilterDate}" Width="140" Margin="0,0,10,0"/>
+                            <TextBlock Text="Employee ID:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox Text="{Binding FilterEmployeeId}" Width="120" Margin="0,0,10,0"/>
+                        </StackPanel>
 
-            <DataGrid.Resources>
-                <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="#6378FF"/>
-                    <Setter Property="Foreground" Value="White"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
-                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                </Style>
-            </DataGrid.Resources>
+                        <Button Content="Filter"
+                                Grid.Column="1"
+                                Command="{Binding FilterCommand}"
+                                Background="#6378FF"
+                                Style="{StaticResource StyledButton}"/>
+                    </Grid>
 
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="ID" Binding="{Binding Id}" IsReadOnly="True" Width="*"/>
-                <DataGridTextColumn Header="Employee ID" Binding="{Binding EmployeeId}" Width="*"/>
-                <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*"/>
-                <DataGridTextColumn Header="Time In" Binding="{Binding TimeIn}" Width="*"/>
-                <DataGridTextColumn Header="Time Out" Binding="{Binding TimeOut}" Width="*"/>
-                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/>
-            </DataGrid.Columns>
-        </DataGrid>
+                    <!-- Attendance grid -->
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding Attendances}"
+                              SelectedItem="{Binding SelectedAttendance}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="False"
+                              Background="#2A2B40"
+                              Foreground="Black"
+                              RowBackground="#D9D9D9"
+                              AlternatingRowBackground="#D9D9D9"
+                              BorderThickness="0"
+                              GridLinesVisibility="None"
+                              RowHeight="40"
+                              Margin="0,10,0,10"
+                              ColumnHeaderHeight="40">
+                        <DataGrid.Resources>
+                            <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource GridHeader}"/>
+                        </DataGrid.Resources>
 
-        <!-- CRUD Buttons -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button Content="Add" Command="{Binding AddCommand}" Background="#28a745" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
-            <Button Content="Update" Command="{Binding UpdateCommand}" Background="#ffc107" Foreground="Black" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
-            <Button Content="Delete" Command="{Binding DeleteCommand}" Background="#dc3545" Style="{StaticResource StyledButton}"/>
-        </StackPanel>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" IsReadOnly="True" Width="*" />
+                            <DataGridTextColumn Header="Employee ID" Binding="{Binding EmployeeId}" Width="*"/>
+                            <DataGridTextColumn Header="Date" Binding="{Binding Date, StringFormat={}{0:yyyy-MM-dd}}" Width="*"/>
+                            <DataGridTextColumn Header="Time In" Binding="{Binding TimeIn}" Width="*"/>
+                            <DataGridTextColumn Header="Time Out" Binding="{Binding TimeOut}" Width="*"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- CRUD -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="Add"    Command="{Binding AddCommand}"    Background="#28a745" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
+                        <Button Content="Update" Command="{Binding UpdateCommand}" Background="#ffc107" Foreground="Black" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
+                        <Button Content="Delete" Command="{Binding DeleteCommand}" Background="#dc3545" Style="{StaticResource StyledButton}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ===================== LEAVE REQUESTS ===================== -->
+            <TabItem Header="Leave Requests">
+                <Grid Background="Transparent" Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Filters -->
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                            <TextBlock Text="Employee ID:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox Text="{Binding LeaveFilterEmployeeId}" Width="120" Margin="0,0,10,0"/>
+
+                            <TextBlock Text="From:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <DatePicker SelectedDate="{Binding LeaveFrom}" Width="140" Margin="0,0,10,0"/>
+
+                            <TextBlock Text="To:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <DatePicker SelectedDate="{Binding LeaveTo}" Width="140" Margin="0,0,10,0"/>
+
+                            <TextBlock Text="Status:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <ComboBox SelectedValue="{Binding LeaveFilterStatus, Mode=TwoWay}"
+                                      SelectedValuePath="Tag"
+                                      Width="140" Margin="0,0,10,0">
+                                <ComboBoxItem Content="Pending"  Tag="{x:Static models:LeaveStatus.Pending}"/>
+                                <ComboBoxItem Content="Approved" Tag="{x:Static models:LeaveStatus.Approved}"/>
+                                <ComboBoxItem Content="Rejected" Tag="{x:Static models:LeaveStatus.Rejected}"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <Button Content="Filter"
+                                Grid.Column="1"
+                                Command="{Binding LeaveFilterCommand}"
+                                Background="#6378FF"
+                                Style="{StaticResource StyledButton}"/>
+                    </Grid>
+
+                    <!-- Leave grid -->
+                    <DataGrid x:Name="LeaveGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding LeaveRequests}"
+                              SelectedItem="{Binding SelectedLeave}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="False"
+                              SelectionUnit="FullRow"
+                              Background="#2A2B40"
+                              Foreground="Black"
+                              RowBackground="#D9D9D9"
+                              AlternatingRowBackground="#D9D9D9"
+                              BorderThickness="0"
+                              GridLinesVisibility="None"
+                              RowHeight="40"
+                              Margin="0,10,0,10"
+                              ColumnHeaderHeight="40"
+                              SelectionChanged="LeaveGrid_SelectionChanged"
+                              RowEditEnding="LeaveGrid_RowEditEnding"
+                              CurrentCellChanged="LeaveGrid_CurrentCellChanged">
+                        <DataGrid.Resources>
+                            <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource GridHeader}"/>
+                        </DataGrid.Resources>
+
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" IsReadOnly="True" Width="*"/>
+                            <DataGridTextColumn Header="Employee ID" Binding="{Binding EmployeeId}" Width="*"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding LeaveType}" Width="*"/>
+                            <DataGridTextColumn Header="Reason" Binding="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" Width="2*"/>
+                            <DataGridTextColumn Header="From" Binding="{Binding DateFrom, StringFormat={}{0:yyyy-MM-dd}}" Width="*"/>
+                            <DataGridTextColumn Header="To" Binding="{Binding DateTo, StringFormat={}{0:yyyy-MM-dd}}" Width="*"/>
+                            <DataGridCheckBoxColumn Header="Half Day" Binding="{Binding HalfDay}" Width="*"/>
+
+                            <!-- Status dropdown -->
+                            <DataGridComboBoxColumn Header="Status"
+                                                    ItemsSource="{StaticResource EditableStatuses}"
+                                                    SelectedItemBinding="{Binding Status, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    ElementStyle="{StaticResource CellCombo}"
+                                                    EditingElementStyle="{StaticResource CellComboEditing}"
+                                                    Width="*"/>
+
+                            <!-- Hidden columns -->
+                            <DataGridTextColumn Header="Approver UserId" Binding="{Binding ApproverUserId}" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Approved At" Binding="{Binding ApprovedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Visibility="Collapsed"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Actions -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="Create"  Command="{Binding LeaveCreateCommand}"  Background="#28a745" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
+                        <Button Content="Update"  Command="{Binding LeaveUpdateCommand}"  Background="#ffc107" Foreground="Black" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
+                        <Button Content="Delete"  Command="{Binding LeaveDeleteCommand}"  Background="#dc3545" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
+
+                        <Button Content="Approve" Command="{Binding LeaveApproveCommand}" Background="#4caf50" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
+                        <Button Content="Reject"  Command="{Binding LeaveRejectCommand}"  Background="#f44336" Style="{StaticResource StyledButton}" Margin="0,0,10,0"/>
+                        <Button Content="Cancel"  Command="{Binding LeaveCancelCommand}"  Background="#9e9e9e" Style="{StaticResource StyledButton}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
     </Grid>
 </UserControl>
