@@ -12,11 +12,13 @@ namespace HillsCafeManagement.Views.Components
             InitializeComponent();
         }
 
+        // Smooth wheel scroll while keeping the scrollbar hidden
         private void SidebarScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            ScrollViewer scrollViewer = FindScrollViewer(this);
+            var scrollViewer = FindScrollViewer(this);
             if (scrollViewer != null)
             {
+                // Adjust step as you like; e.Delta is typically +/-120 per notch
                 scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - e.Delta);
                 e.Handled = true;
             }

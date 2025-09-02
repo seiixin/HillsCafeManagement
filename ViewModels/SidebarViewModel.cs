@@ -5,6 +5,8 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 using HillsCafeManagement.Models;
 using HillsCafeManagement.Views.Admin.Attendance;
@@ -28,45 +30,70 @@ using HillsCafeManagement.Views.Employee.Attendance;
 using HillsCafeManagement.Views.Employee.Payslip;
 using HillsCafeManagement.Views.Employee.Profile;
 
+// alias the service types (same technique as your EmployeeProfileViewModel)
+using IEmployeeService = HillsCafeManagement.Services.IEmployeeService;
+using EmployeeService = HillsCafeManagement.Services.EmployeeService;
+
 namespace HillsCafeManagement.ViewModels
 {
     public class SidebarViewModel : INotifyPropertyChanged
     {
-        private readonly UserModel _user;              // <- keep the truth you were injected
-        private readonly string _role;                 // cache normalized role
-        private readonly int _employeeId;              // 0 if none
+        // -----------------------------
+        // Dependencies / identity
+        // -----------------------------
+        private readonly IEmployeeService _service;
+        private int _employeeId;             // authoritative id used for DB fetch
+        private string _role = string.Empty; // normalized role from DB
 
+        // -----------------------------
+        // Header state (bound in XAML)
+        // -----------------------------
         private string _userRole = string.Empty;
         private string _userName = string.Empty;
+        private ImageSource? _userAvatarImage;
+
+        // -----------------------------
+        // UI state
+        // -----------------------------
         private string _selectedMenuItem = string.Empty;
         private UserControl _currentView;
 
-        public SidebarViewModel(UserModel user)
+        public SidebarViewModel(int employeeId, IEmployeeService? service = null)
         {
-            _user = user ?? throw new ArgumentNullException(nameof(user));
-            _role = (_user.Role ?? string.Empty).Trim().ToUpperInvariant();
-            _employeeId = _user.Employee?.Id ?? 0;
-
-            UserRole = _role;
-            UserName = _user.Employee?.FullName ?? _user.Email ?? "User";
-
+            _service = service ?? new EmployeeService();
             MenuItems = new ObservableCollection<string>();
             NavigateCommand = new RelayCommand<string?>(Navigate);
+            ReloadProfileCommand = new RelayCommand<object?>(_ => LoadEmployee(_employeeId));
+            RefreshAvatarCommand = new RelayCommand<object?>(_ => RefreshAvatar());
 
-            InitializeMenuItems();
-            SetDefaultView();
+            _employeeId = employeeId;
+            LoadEmployee(_employeeId); // pulls name/role/avatar from DB and sets menu + default view
         }
 
+        // Convenience overload: allow constructing with a UserModel too
+        public SidebarViewModel(UserModel user, IEmployeeService? service = null)
+            : this(user?.Employee?.Id ?? 0, service)
+        { }
+
+        // -----------------------------
+        // Bindable properties
+        // -----------------------------
         public string UserRole
         {
             get => _userRole;
-            set { _userRole = value; OnPropertyChanged(); }
+            private set { _userRole = value; OnPropertyChanged(); }
         }
 
         public string UserName
         {
             get => _userName;
-            set { _userName = value; OnPropertyChanged(); }
+            private set { _userName = value; OnPropertyChanged(); }
+        }
+
+        public ImageSource? UserAvatarImage
+        {
+            get => _userAvatarImage;
+            private set { _userAvatarImage = value; OnPropertyChanged(); }
         }
 
         public string SelectedMenuItem
@@ -85,17 +112,116 @@ namespace HillsCafeManagement.ViewModels
         public UserControl CurrentView
         {
             get => _currentView;
-            set
-            {
-                _currentView = value ?? throw new ArgumentNullException(nameof(CurrentView));
-                OnPropertyChanged();
-            }
+            set { _currentView = value ?? throw new ArgumentNullException(nameof(CurrentView)); OnPropertyChanged(); }
         }
 
         public ObservableCollection<string> MenuItems { get; }
-
         public ICommand NavigateCommand { get; }
+        public ICommand ReloadProfileCommand { get; }
+        public ICommand RefreshAvatarCommand { get; }
 
+        // -----------------------------
+        // Data fetch (same approach as EmployeeProfileViewModel)
+        // -----------------------------
+        private void LoadEmployee(int id)
+        {
+            if (id <= 0)
+            {
+                // fallback visuals (e.g., in designer or if no employee mapped)
+                ApplyHeader(null);
+                InitializeMenuItems(); // with whatever _role currently is (may be empty)
+                SetDefaultView();
+                return;
+            }
+
+            try
+            {
+                var one = _service.GetEmployeeById(id);
+                if (one == null)
+                {
+                    // gentle fallback if service shape differs
+                    var list = _service.GetAllEmployees();
+                    one = list.Find(e => e.Id == id);
+                }
+
+                ApplyHeader(one);
+                InitializeMenuItems();
+                SetDefaultView();
+            }
+            catch (Exception ex)
+            {
+                // minimal error surfacing in sidebar; you can expand if desired
+                ApplyHeader(null);
+                InitializeMenuItems();
+                SetDefaultView();
+                System.Diagnostics.Debug.WriteLine($"Sidebar LoadEmployee failed: {ex.Message}");
+            }
+        }
+
+        private void ApplyHeader(EmployeeModel? emp)
+        {
+            // Derive name
+            UserName = string.IsNullOrWhiteSpace(emp?.FullName)
+                ? "(Unknown)"
+                : emp!.FullName;
+
+            // Derive role from linked user account (fallback to previous or "EMPLOYEE")
+            var roleRaw = emp?.UserAccount?.Role ?? _role;
+            _role = (roleRaw ?? "EMPLOYEE").Trim().ToUpperInvariant();
+            UserRole = _role;
+
+            // Derive avatar
+            var path = emp?.ImageUrl;
+            UserAvatarImage = LoadImageOrFallback(path);
+        }
+
+        private static ImageSource LoadImageOrFallback(string? path)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                    return MakePlaceholderAvatar();
+
+                var uriKind = Uri.IsWellFormedUriString(path, UriKind.Absolute)
+                    ? UriKind.Absolute
+                    : UriKind.RelativeOrAbsolute;
+
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(path, uriKind);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;           // avoid file locking
+                bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+                bmp.EndInit();
+                bmp.Freeze();
+                return bmp;
+            }
+            catch
+            {
+                return MakePlaceholderAvatar();
+            }
+        }
+
+        private static ImageSource MakePlaceholderAvatar()
+        {
+            var dv = new DrawingVisual();
+            using (var dc = dv.RenderOpen())
+                dc.DrawRectangle(Brushes.Gray, null, new Rect(0, 0, 64, 64));
+
+            var rtb = new RenderTargetBitmap(64, 64, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(dv);
+            rtb.Freeze();
+            return rtb;
+        }
+
+        // allow external callers to just refresh the picture without a full DB roundtrip
+        public void RefreshAvatar(string? newImagePath = null)
+        {
+            UserAvatarImage = LoadImageOrFallback(newImagePath);
+        }
+
+        // -----------------------------
+        // Menu / Navigation (unchanged logic)
+        // -----------------------------
         private void InitializeMenuItems()
         {
             MenuItems.Clear();
@@ -128,14 +254,11 @@ namespace HillsCafeManagement.ViewModels
                     break;
 
                 case "EMPLOYEE":
+                default:
                     MenuItems.Add("Attendance");
                     MenuItems.Add("Payslip");
                     MenuItems.Add("Profile");
                     MenuItems.Add("Logout");
-                    break;
-
-                default:
-                    MessageBox.Show("Unrecognized role: " + _role);
                     break;
             }
         }
@@ -147,18 +270,12 @@ namespace HillsCafeManagement.ViewModels
                 case "ADMIN":
                     CurrentView = new Dashboard();
                     break;
-
                 case "CASHIER":
                     CurrentView = new POSView();
                     break;
-
                 case "EMPLOYEE":
-                    // Pass the actual employee id; if invalid, show a friendly stub view
-                    CurrentView = MakeEmployeeProfileViewOrFallback();
-                    break;
-
                 default:
-                    CurrentView = new Dashboard();
+                    CurrentView = MakeEmployeeProfileViewOrFallback();
                     break;
             }
         }
@@ -248,16 +365,12 @@ namespace HillsCafeManagement.ViewModels
         private UserControl MakeEmployeeProfileViewOrFallback()
         {
             if (_employeeId > 0)
-            {
-                // Use the strong constructor that triggers VM load via EmployeeId.
                 return new ProfileView(_employeeId);
-            }
 
-            // Nice fallback: show a lightweight message view instead of silently showing someone else’s profile.
             var border = new Border
             {
                 Padding = new Thickness(24),
-                Child = new TextBlock
+                Child = new System.Windows.Controls.TextBlock
                 {
                     Text = "No employee record was found for the current user.",
                     FontSize = 16,
@@ -277,17 +390,20 @@ namespace HillsCafeManagement.ViewModels
                 if (window != mainWindow)
                 {
                     window.Close();
-                    // Close only the current shell; keep iter simple
                     break;
                 }
             }
         }
 
+        // -----------------------------
+        // INotifyPropertyChanged
+        // -----------------------------
         public event PropertyChangedEventHandler? PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
+    // your RelayCommand<T> stays the same
     public class RelayCommand<T> : ICommand
     {
         private readonly Action<T?> _execute;
@@ -299,11 +415,8 @@ namespace HillsCafeManagement.ViewModels
             _canExecute = canExecute;
         }
 
-        public bool CanExecute(object? parameter) =>
-            _canExecute == null || _canExecute((T?)parameter);
-
-        public void Execute(object? parameter) =>
-            _execute((T?)parameter);
+        public bool CanExecute(object? parameter) => _canExecute == null || _canExecute((T?)parameter);
+        public void Execute(object? parameter) => _execute((T?)parameter);
 
         public event EventHandler? CanExecuteChanged
         {

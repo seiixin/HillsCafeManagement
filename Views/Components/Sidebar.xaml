@@ -1,13 +1,14 @@
 ﻿<UserControl x:Class="HillsCafeManagement.Views.Components.Sidebar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             mc:Ignorable="d" 
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="250"
              x:Name="SidebarControl">
 
     <UserControl.Resources>
+        <!-- Sidebar item look -->
         <Style x:Key="SidebarItemStyle" TargetType="ListBoxItem">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Foreground" Value="Black"/>
@@ -46,16 +47,31 @@
                       PanningMode="VerticalOnly"
                       PreviewMouseWheel="SidebarScroll_PreviewMouseWheel">
             <StackPanel Margin="0,30" HorizontalAlignment="Center">
+
                 <!-- Profile Section -->
-                <Ellipse Width="68" Height="62" Fill="Gray"/>
+                <Grid Width="64" Height="64">
+                    <!-- Outer ring -->
+                    <Ellipse Stroke="#33000000" StrokeThickness="1"/>
+                    <!-- Circular avatar -->
+                    <Ellipse>
+                        <Ellipse.Fill>
+                            <!-- Bind to SidebarViewModel.UserAvatarImage -->
+                            <ImageBrush ImageSource="{Binding UserAvatarImage}"
+                                        Stretch="UniformToFill"/>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                </Grid>
+
                 <TextBlock Text="{Binding UserRole, FallbackValue='ADMIN'}"
                            FontWeight="Bold"
                            FontSize="16"
                            Margin="0,10,0,0"
+                           Foreground="Black"
                            TextAlignment="Center"/>
                 <TextBlock Text="{Binding UserName, FallbackValue='(First Last)'}"
                            FontSize="12"
                            HorizontalAlignment="Center"
+                           Foreground="Black"
                            Margin="0,0,0,20"/>
 
                 <!-- Sidebar Menu -->
@@ -64,13 +80,14 @@
                          BorderThickness="0"
                          ItemContainerStyle="{StaticResource SidebarItemStyle}"
                          ItemsSource="{Binding MenuItems}"
-                         SelectedItem="{Binding SelectedMenuItem}">
+                         SelectedItem="{Binding SelectedMenuItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <TextBlock Text="{Binding}" />
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+
             </StackPanel>
         </ScrollViewer>
     </Border>
