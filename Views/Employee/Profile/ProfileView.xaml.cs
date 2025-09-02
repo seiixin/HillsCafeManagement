@@ -1,6 +1,12 @@
-﻿using System.Windows;
+﻿using System;
+using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
+
 using HillsCafeManagement.ViewModels;
+// If you want to new-up the service explicitly here, you can alias like this:
+// using IEmployeeService = HillsCafeManagement.Services.IEmployeeService;
+// using EmployeeService  = HillsCafeManagement.Services.EmployeeService;
 
 namespace HillsCafeManagement.Views.Employee.Profile
 {
@@ -8,17 +14,27 @@ namespace HillsCafeManagement.Views.Employee.Profile
     {
         private bool _isEditing;
 
-        // Use this overload if you can pass the logged-in employee id
+        // Preferred: construct with the actual logged-in employee's ID
         public ProfileView(int employeeId)
         {
             InitializeComponent();
-            var vm = new EmployeeProfileViewModel { EmployeeId = employeeId };
+
+            // Create VM with the given employeeId (VM will DI default service internally)
+            var vm = new EmployeeProfileViewModel(employeeId);
             DataContext = vm;
-            vm.LoadCommand.Execute(null);
+
+            // Start read-only
+            ToggleReadonly(true);
         }
 
-        // Parameterless for XAML designer or fallback
-        public ProfileView() : this(1) { }
+        // Designer-only fallback (so the designer shows something)
+        public ProfileView() : this(GetDesignTimeEmployeeId()) { }
+
+        private static int GetDesignTimeEmployeeId()
+        {
+            // Only used by the Visual Studio designer; not at runtime navigation.
+            return DesignerProperties.GetIsInDesignMode(new DependencyObject()) ? 1 : 0;
+        }
 
         private void OnEditSaveClicked(object sender, RoutedEventArgs e)
         {
@@ -26,14 +42,17 @@ namespace HillsCafeManagement.Views.Employee.Profile
             btnEditSave.Content = _isEditing ? "Save" : "Edit";
             ToggleReadonly(!_isEditing);
 
-            if (!_isEditing && DataContext is EmployeeProfileViewModel vm && vm.SaveCommand.CanExecute(null))
+            // When switching back to read-only, trigger save
+            if (!_isEditing && DataContext is EmployeeProfileViewModel vm)
             {
-                vm.SaveCommand.Execute(null);
+                if (vm.SaveCommand?.CanExecute(null) == true)
+                    vm.SaveCommand.Execute(null);
             }
         }
 
         private void ToggleReadonly(bool readOnly)
         {
+            // Left column
             tbFullName.IsReadOnly = readOnly;
             tbAge.IsReadOnly = readOnly;
             tbSex.IsReadOnly = readOnly;
@@ -43,6 +62,7 @@ namespace HillsCafeManagement.Views.Employee.Profile
             tbPosition.IsReadOnly = readOnly;
             tbSalary.IsReadOnly = readOnly;
 
+            // Right column
             tbSSS.IsReadOnly = readOnly;
             tbPhilhealth.IsReadOnly = readOnly;
             tbPagibig.IsReadOnly = readOnly;

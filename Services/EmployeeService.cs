@@ -5,11 +5,31 @@ using System.Collections.Generic;
 
 namespace HillsCafeManagement.Services
 {
-    internal class EmployeeService
+    public interface IEmployeeService
     {
-        private readonly string _connectionString = "server=localhost;user=root;password=;database=hillscafe_db;";
+        List<EmployeeModel> GetAllEmployees();
+        EmployeeModel? GetEmployeeById(int id);
+        bool UpdateEmployee(EmployeeModel employee);
+        bool UpdateEmployeeImage(int employeeId, string imageUrl);
+        bool AddEmployee(EmployeeModel employee);
+        bool DeleteEmployee(int employeeId);
+    }
 
-        #region READ
+    public sealed class EmployeeService : IEmployeeService
+    {
+        private readonly string _connectionString;
+
+        // Allow DI / config to provide the connection string; default to your current literal.
+        public EmployeeService(string? connectionString = null)
+        {
+            _connectionString = string.IsNullOrWhiteSpace(connectionString)
+                ? "server=localhost;user=root;password=;database=hillscafe_db;"
+                : connectionString!;
+        }
+
+        // =====================================================================
+        // READ
+        // =====================================================================
 
         public List<EmployeeModel> GetAllEmployees()
         {
@@ -20,35 +40,35 @@ namespace HillsCafeManagement.Services
                 using var connection = new MySqlConnection(_connectionString);
                 connection.Open();
 
-                const string query = @"
+                const string sql = @"
                     SELECT 
-                        e.*, 
-                        u.id AS user_id, 
-                        u.email, 
-                        u.role
+                        e.*,
+                        u.id    AS user_id,
+                        u.email AS email,
+                        u.role  AS role
                     FROM employees e
                     LEFT JOIN users u ON u.employee_id = e.id
-                    ORDER BY e.id DESC";
+                    ORDER BY e.id DESC;";
 
-                using var cmd = new MySqlCommand(query, connection);
+                using var cmd = new MySqlCommand(sql, connection);
                 using var reader = cmd.ExecuteReader();
 
                 while (reader.Read())
                 {
-                    var employee = MapEmployee(reader);
+                    var emp = MapEmployee(reader);
 
                     if (!reader.IsDBNull(reader.GetOrdinal("user_id")))
                     {
-                        employee.UserAccount = new UserModel
+                        emp.UserAccount = new UserModel
                         {
                             Id = reader.GetInt32("user_id"),
                             Email = reader["email"]?.ToString(),
                             Role = reader["role"]?.ToString(),
-                            EmployeeId = employee.Id
+                            EmployeeId = emp.Id
                         };
                     }
 
-                    employees.Add(employee);
+                    employees.Add(emp);
                 }
             }
             catch (Exception ex)
@@ -59,7 +79,6 @@ namespace HillsCafeManagement.Services
             return employees;
         }
 
-        // Optional helper (safe if unused elsewhere)
         public EmployeeModel? GetEmployeeById(int id)
         {
             try
@@ -67,37 +86,37 @@ namespace HillsCafeManagement.Services
                 using var connection = new MySqlConnection(_connectionString);
                 connection.Open();
 
-                const string query = @"
+                const string sql = @"
                     SELECT 
-                        e.*, 
-                        u.id AS user_id, 
-                        u.email, 
-                        u.role
+                        e.*,
+                        u.id    AS user_id,
+                        u.email AS email,
+                        u.role  AS role
                     FROM employees e
                     LEFT JOIN users u ON u.employee_id = e.id
                     WHERE e.id = @id
-                    LIMIT 1";
+                    LIMIT 1;";
 
-                using var cmd = new MySqlCommand(query, connection);
+                using var cmd = new MySqlCommand(sql, connection);
                 cmd.Parameters.AddWithValue("@id", id);
 
                 using var reader = cmd.ExecuteReader();
                 if (!reader.Read()) return null;
 
-                var employee = MapEmployee(reader);
+                var emp = MapEmployee(reader);
 
                 if (!reader.IsDBNull(reader.GetOrdinal("user_id")))
                 {
-                    employee.UserAccount = new UserModel
+                    emp.UserAccount = new UserModel
                     {
                         Id = reader.GetInt32("user_id"),
                         Email = reader["email"]?.ToString(),
                         Role = reader["role"]?.ToString(),
-                        EmployeeId = employee.Id
+                        EmployeeId = emp.Id
                     };
                 }
 
-                return employee;
+                return emp;
             }
             catch (Exception ex)
             {
@@ -106,49 +125,9 @@ namespace HillsCafeManagement.Services
             }
         }
 
-        #endregion
-
-        #region DELETE
-
-        public bool DeleteEmployee(int employeeId)
-        {
-            try
-            {
-                using var connection = new MySqlConnection(_connectionString);
-                connection.Open();
-
-                using var transaction = connection.BeginTransaction();
-
-                // Delete linked user account
-                using (var deleteUserCmd = new MySqlCommand(
-                           "DELETE FROM users WHERE employee_id = @employeeId", connection, transaction))
-                {
-                    deleteUserCmd.Parameters.AddWithValue("@employeeId", employeeId);
-                    deleteUserCmd.ExecuteNonQuery();
-                }
-
-                // Delete employee
-                int rowsAffected;
-                using (var deleteEmployeeCmd = new MySqlCommand(
-                           "DELETE FROM employees WHERE id = @id", connection, transaction))
-                {
-                    deleteEmployeeCmd.Parameters.AddWithValue("@id", employeeId);
-                    rowsAffected = deleteEmployeeCmd.ExecuteNonQuery();
-                }
-
-                transaction.Commit();
-                return rowsAffected > 0;
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine("Error deleting employee: " + ex.Message);
-                return false;
-            }
-        }
-
-        #endregion
-
-        #region CREATE
+        // =====================================================================
+        // CREATE
+        // =====================================================================
 
         public bool AddEmployee(EmployeeModel employee)
         {
@@ -156,10 +135,9 @@ namespace HillsCafeManagement.Services
             {
                 using var connection = new MySqlConnection(_connectionString);
                 connection.Open();
+                using var tx = connection.BeginTransaction();
 
-                using var transaction = connection.BeginTransaction();
-
-                const string insertEmployeeQuery = @"
+                const string sql = @"
                     INSERT INTO employees 
                     (full_name, age, sex, address, birthday, contact_number, position, salary_per_day, shift,
                      sss_number, philhealth_number, pagibig_number, image_url, emergency_contact, date_hired, created_at)
@@ -168,28 +146,29 @@ namespace HillsCafeManagement.Services
                      @SssNumber, @PhilhealthNumber, @PagibigNumber, @ImageUrl, @EmergencyContact, @DateHired, @CreatedAt);
                     SELECT LAST_INSERT_ID();";
 
-                using var cmd = new MySqlCommand(insertEmployeeQuery, connection, transaction);
-                cmd.Parameters.AddWithValue("@FullName", employee.FullName ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Age", employee.Age ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Sex", employee.Sex ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Address", employee.Address ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Birthday", employee.Birthday ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@ContactNumber", employee.ContactNumber ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Position", employee.Position ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@SalaryPerDay", employee.SalaryPerDay ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Shift", employee.Shift ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@SssNumber", employee.SssNumber ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@PhilhealthNumber", employee.PhilhealthNumber ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@PagibigNumber", employee.PagibigNumber ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@ImageUrl", employee.ImageUrl ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@EmergencyContact", employee.EmergencyContact ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@DateHired", employee.DateHired ?? (object)DBNull.Value);
+                using var cmd = new MySqlCommand(sql, connection, tx);
+                cmd.Parameters.AddWithValue("@FullName", ParamOrDbNull(employee.FullName));
+                cmd.Parameters.AddWithValue("@Age", ParamOrDbNull(employee.Age));
+                cmd.Parameters.AddWithValue("@Sex", ParamOrDbNull(employee.Sex));
+                cmd.Parameters.AddWithValue("@Address", ParamOrDbNull(employee.Address));
+                cmd.Parameters.AddWithValue("@Birthday", ParamOrDbNull(employee.Birthday));
+                cmd.Parameters.AddWithValue("@ContactNumber", ParamOrDbNull(employee.ContactNumber));
+                cmd.Parameters.AddWithValue("@Position", ParamOrDbNull(employee.Position));
+                cmd.Parameters.AddWithValue("@SalaryPerDay", ParamOrDbNull(employee.SalaryPerDay));
+                cmd.Parameters.AddWithValue("@Shift", ParamOrDbNull(employee.Shift));
+                cmd.Parameters.AddWithValue("@SssNumber", ParamOrDbNull(employee.SssNumber));
+                cmd.Parameters.AddWithValue("@PhilhealthNumber", ParamOrDbNull(employee.PhilhealthNumber));
+                cmd.Parameters.AddWithValue("@PagibigNumber", ParamOrDbNull(employee.PagibigNumber));
+                cmd.Parameters.AddWithValue("@ImageUrl", ParamOrDbNull(employee.ImageUrl));
+                cmd.Parameters.AddWithValue("@EmergencyContact", ParamOrDbNull(employee.EmergencyContact));
+                cmd.Parameters.AddWithValue("@DateHired", ParamOrDbNull(employee.DateHired));
                 cmd.Parameters.AddWithValue("@CreatedAt", employee.CreatedAt == default ? DateTime.Now : employee.CreatedAt);
 
-                var insertedId = Convert.ToInt32(cmd.ExecuteScalar());
-                transaction.Commit();
+                var newIdObj = cmd.ExecuteScalar();
+                tx.Commit();
 
-                employee.Id = insertedId;
+                var newId = Convert.ToInt32(newIdObj);
+                employee.Id = newId;
                 return true;
             }
             catch (Exception ex)
@@ -199,11 +178,11 @@ namespace HillsCafeManagement.Services
             }
         }
 
-        #endregion
+        // =====================================================================
+        // UPDATE
+        // =====================================================================
 
-        #region UPDATE  (KEEP THIS METHOD NAME!)
-
-        // This preserves your original signature so all existing callers build successfully.
+        // Keep this exact name/signature to satisfy existing callers
         public bool UpdateEmployee(EmployeeModel employee)
         {
             try
@@ -211,7 +190,7 @@ namespace HillsCafeManagement.Services
                 using var connection = new MySqlConnection(_connectionString);
                 connection.Open();
 
-                const string updateEmployeeQuery = @"
+                const string sql = @"
                     UPDATE employees SET
                         full_name         = @FullName,
                         age               = @Age,
@@ -228,28 +207,27 @@ namespace HillsCafeManagement.Services
                         image_url         = @ImageUrl,
                         emergency_contact = @EmergencyContact,
                         date_hired        = @DateHired
-                    WHERE id = @Id";
+                    WHERE id = @Id;";
 
-                using var cmd = new MySqlCommand(updateEmployeeQuery, connection);
-                cmd.Parameters.AddWithValue("@FullName", employee.FullName ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Age", employee.Age ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Sex", employee.Sex ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Address", employee.Address ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Birthday", employee.Birthday ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@ContactNumber", employee.ContactNumber ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Position", employee.Position ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@SalaryPerDay", employee.SalaryPerDay ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@Shift", employee.Shift ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@SssNumber", employee.SssNumber ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@PhilhealthNumber", employee.PhilhealthNumber ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@PagibigNumber", employee.PagibigNumber ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@ImageUrl", employee.ImageUrl ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@EmergencyContact", employee.EmergencyContact ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@DateHired", employee.DateHired ?? (object)DBNull.Value);
+                using var cmd = new MySqlCommand(sql, connection);
+                cmd.Parameters.AddWithValue("@FullName", ParamOrDbNull(employee.FullName));
+                cmd.Parameters.AddWithValue("@Age", ParamOrDbNull(employee.Age));
+                cmd.Parameters.AddWithValue("@Sex", ParamOrDbNull(employee.Sex));
+                cmd.Parameters.AddWithValue("@Address", ParamOrDbNull(employee.Address));
+                cmd.Parameters.AddWithValue("@Birthday", ParamOrDbNull(employee.Birthday));
+                cmd.Parameters.AddWithValue("@ContactNumber", ParamOrDbNull(employee.ContactNumber));
+                cmd.Parameters.AddWithValue("@Position", ParamOrDbNull(employee.Position));
+                cmd.Parameters.AddWithValue("@SalaryPerDay", ParamOrDbNull(employee.SalaryPerDay));
+                cmd.Parameters.AddWithValue("@Shift", ParamOrDbNull(employee.Shift));
+                cmd.Parameters.AddWithValue("@SssNumber", ParamOrDbNull(employee.SssNumber));
+                cmd.Parameters.AddWithValue("@PhilhealthNumber", ParamOrDbNull(employee.PhilhealthNumber));
+                cmd.Parameters.AddWithValue("@PagibigNumber", ParamOrDbNull(employee.PagibigNumber));
+                cmd.Parameters.AddWithValue("@ImageUrl", ParamOrDbNull(employee.ImageUrl));
+                cmd.Parameters.AddWithValue("@EmergencyContact", ParamOrDbNull(employee.EmergencyContact));
+                cmd.Parameters.AddWithValue("@DateHired", ParamOrDbNull(employee.DateHired));
                 cmd.Parameters.AddWithValue("@Id", employee.Id);
 
-                int rowsAffected = cmd.ExecuteNonQuery();
-                return rowsAffected > 0;
+                return cmd.ExecuteNonQuery() > 0;
             }
             catch (Exception ex)
             {
@@ -258,7 +236,6 @@ namespace HillsCafeManagement.Services
             }
         }
 
-        // Optional convenience if you want to update ONLY the photo from some UI
         public bool UpdateEmployeeImage(int employeeId, string imageUrl)
         {
             try
@@ -266,10 +243,11 @@ namespace HillsCafeManagement.Services
                 using var connection = new MySqlConnection(_connectionString);
                 connection.Open();
 
-                const string sql = @"UPDATE employees SET image_url = @ImageUrl WHERE id = @Id;";
+                const string sql = "UPDATE employees SET image_url = @ImageUrl WHERE id = @Id;";
                 using var cmd = new MySqlCommand(sql, connection);
-                cmd.Parameters.AddWithValue("@ImageUrl", (object?)imageUrl ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ImageUrl", ParamOrDbNull(imageUrl));
                 cmd.Parameters.AddWithValue("@Id", employeeId);
+
                 return cmd.ExecuteNonQuery() > 0;
             }
             catch (Exception ex)
@@ -279,31 +257,66 @@ namespace HillsCafeManagement.Services
             }
         }
 
-        #endregion
+        // =====================================================================
+        // DELETE
+        // =====================================================================
 
-        #region mapper
-
-        private static EmployeeModel MapEmployee(MySqlDataReader reader) => new EmployeeModel
+        public bool DeleteEmployee(int employeeId)
         {
-            Id = reader.GetInt32("id"),
-            FullName = reader["full_name"]?.ToString(),
-            Age = reader.IsDBNull(reader.GetOrdinal("age")) ? (int?)null : reader.GetInt32("age"),
-            Sex = reader["sex"]?.ToString(),
-            Address = reader["address"]?.ToString(),
-            Birthday = reader.IsDBNull(reader.GetOrdinal("birthday")) ? (DateTime?)null : reader.GetDateTime("birthday"),
-            ContactNumber = reader["contact_number"]?.ToString(),
-            Position = reader["position"]?.ToString(),
-            SalaryPerDay = reader.IsDBNull(reader.GetOrdinal("salary_per_day")) ? (decimal?)null : reader.GetDecimal("salary_per_day"),
-            Shift = reader["shift"]?.ToString(),
-            SssNumber = reader["sss_number"]?.ToString(),
-            PhilhealthNumber = reader["philhealth_number"]?.ToString(),
-            PagibigNumber = reader["pagibig_number"]?.ToString(),
-            ImageUrl = reader["image_url"]?.ToString(),
-            EmergencyContact = reader["emergency_contact"]?.ToString(),
-            DateHired = reader.IsDBNull(reader.GetOrdinal("date_hired")) ? (DateTime?)null : reader.GetDateTime("date_hired"),
-            CreatedAt = reader.IsDBNull(reader.GetOrdinal("created_at")) ? DateTime.Now : reader.GetDateTime("created_at")
+            try
+            {
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
+                using var tx = connection.BeginTransaction();
+
+                using (var delUser = new MySqlCommand("DELETE FROM users WHERE employee_id = @eid;", connection, tx))
+                {
+                    delUser.Parameters.AddWithValue("@eid", employeeId);
+                    delUser.ExecuteNonQuery();
+                }
+
+                int rows;
+                using (var delEmp = new MySqlCommand("DELETE FROM employees WHERE id = @id;", connection, tx))
+                {
+                    delEmp.Parameters.AddWithValue("@id", employeeId);
+                    rows = delEmp.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+                return rows > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error deleting employee: " + ex.Message);
+                return false;
+            }
+        }
+
+        // =====================================================================
+        // Mapper
+        // =====================================================================
+
+        private static EmployeeModel MapEmployee(MySqlDataReader r) => new EmployeeModel
+        {
+            Id = r.GetInt32("id"),
+            FullName = r["full_name"]?.ToString(),
+            Age = r.IsDBNull(r.GetOrdinal("age")) ? (int?)null : r.GetInt32("age"),
+            Sex = r["sex"]?.ToString(),
+            Address = r["address"]?.ToString(),
+            Birthday = r.IsDBNull(r.GetOrdinal("birthday")) ? (DateTime?)null : r.GetDateTime("birthday"),
+            ContactNumber = r["contact_number"]?.ToString(),
+            Position = r["position"]?.ToString(),
+            SalaryPerDay = r.IsDBNull(r.GetOrdinal("salary_per_day")) ? (decimal?)null : r.GetDecimal("salary_per_day"),
+            Shift = r["shift"]?.ToString(),
+            SssNumber = r["sss_number"]?.ToString(),
+            PhilhealthNumber = r["philhealth_number"]?.ToString(),
+            PagibigNumber = r["pagibig_number"]?.ToString(),
+            ImageUrl = r["image_url"]?.ToString(),
+            EmergencyContact = r["emergency_contact"]?.ToString(),
+            DateHired = r.IsDBNull(r.GetOrdinal("date_hired")) ? (DateTime?)null : r.GetDateTime("date_hired"),
+            CreatedAt = r.IsDBNull(r.GetOrdinal("created_at")) ? DateTime.Now : r.GetDateTime("created_at")
         };
 
-        #endregion
+        private static object ParamOrDbNull(object? value) => value ?? DBNull.Value;
     }
 }

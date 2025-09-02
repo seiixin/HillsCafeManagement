@@ -31,11 +31,13 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Avatar + change button -->
-                <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <!-- Simple circular avatar using ImageBrush -->
+                <StackPanel Grid.Column="0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Top">
                     <Ellipse Width="140" Height="140">
                         <Ellipse.Fill>
-                            <ImageBrush ImageSource="{Binding Employee.ImageUrl}" Stretch="UniformToFill"/>
+                            <ImageBrush ImageSource="{Binding Employee.ImageUrl, FallbackValue=''}"
+                                        Stretch="UniformToFill"/>
                         </Ellipse.Fill>
                     </Ellipse>
 
@@ -60,62 +62,76 @@
                     <!-- Left column -->
                     <StackPanel Grid.Column="0" VerticalAlignment="Top">
                         <TextBlock Text="Full Name:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbFullName" Text="{Binding Employee.FullName, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="tbFullName"
+                                 Text="{Binding Employee.FullName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Age:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbAge" Text="{Binding Employee.Age, TargetNullValue=''}"
+                        <TextBox x:Name="tbAge"
+                                 Text="{Binding Employee.Age, Mode=TwoWay, TargetNullValue=''}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Sex:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbSex" Text="{Binding Employee.Sex}"
+                        <TextBox x:Name="tbSex"
+                                 Text="{Binding Employee.Sex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Address:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbAddress" Text="{Binding Employee.Address}"
+                        <TextBox x:Name="tbAddress"
+                                 Text="{Binding Employee.Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Birthday:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbBirthday" Text="{Binding Employee.Birthday, StringFormat=\{0:yyyy-MM-dd\}, TargetNullValue=''}"
+                        <TextBox x:Name="tbBirthday"
+                                 Text="{Binding Employee.Birthday, Mode=TwoWay, StringFormat=\{0:yyyy-MM-dd\}, TargetNullValue=''}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Contact Number:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbContact" Text="{Binding Employee.ContactNumber}"
+                        <TextBox x:Name="tbContact"
+                                 Text="{Binding Employee.ContactNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Position:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbPosition" Text="{Binding Employee.Position}"
+                        <TextBox x:Name="tbPosition"
+                                 Text="{Binding Employee.Position, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Salary Per Day:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbSalary" Text="{Binding Employee.SalaryPerDay, TargetNullValue='', StringFormat=\{0:0.##\}}"
+                        <TextBox x:Name="tbSalary"
+                                 Text="{Binding Employee.SalaryPerDay, Mode=TwoWay, TargetNullValue='', StringFormat=\{0:0.##\}}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
                     </StackPanel>
 
                     <!-- Right column -->
                     <StackPanel Grid.Column="2" VerticalAlignment="Top">
                         <TextBlock Text="SSS Number:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbSSS" Text="{Binding Employee.SssNumber}"
+                        <TextBox x:Name="tbSSS"
+                                 Text="{Binding Employee.SssNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
-                        <TextBlock Text="PhilHealth Number" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbPhilhealth" Text="{Binding Employee.PhilhealthNumber}"
+                        <TextBlock Text="PhilHealth Number:" FontWeight="SemiBold" />
+                        <TextBox x:Name="tbPhilhealth"
+                                 Text="{Binding Employee.PhilhealthNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Pag-Ibig Number:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbPagibig" Text="{Binding Employee.PagibigNumber}"
+                        <TextBox x:Name="tbPagibig"
+                                 Text="{Binding Employee.PagibigNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Email:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbEmail" Text="{Binding Employee.UserAccount.Email}"
+                        <TextBox x:Name="tbEmail"
+                                 Text="{Binding Employee.UserAccount.Email, Mode=TwoWay, TargetNullValue=''}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Emergency Contact:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbEmergency" Text="{Binding Employee.EmergencyContact}"
+                        <TextBox x:Name="tbEmergency"
+                                 Text="{Binding Employee.EmergencyContact, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
 
                         <TextBlock Text="Date Hired:" FontWeight="SemiBold" />
-                        <TextBox x:Name="tbHired" Text="{Binding Employee.DateHired, StringFormat=\{0:yyyy-MM-dd\}, TargetNullValue=''}"
+                        <TextBox x:Name="tbHired"
+                                 Text="{Binding Employee.DateHired, Mode=TwoWay, StringFormat=\{0:yyyy-MM-dd\}, TargetNullValue=''}"
                                  IsReadOnly="True" Background="White" Padding="8" Margin="0,0,0,8"/>
                     </StackPanel>
                 </Grid>
@@ -123,7 +139,10 @@
         </Border>
 
         <!-- Footer button -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
             <Button x:Name="btnEditSave"
                     Content="Edit"
                     Width="120"

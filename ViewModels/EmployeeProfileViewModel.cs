@@ -6,13 +6,44 @@ using Microsoft.Win32;
 
 using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
-using HillsCafeManagement.Helpers; // <- assumes your existing RelayCommand lives here
+using HillsCafeManagement.Helpers; // RelayCommand
+
+// Alias the *Services* interface/implementation to avoid namespace ambiguity
+using IEmployeeService = HillsCafeManagement.Services.IEmployeeService;
+using EmployeeService = HillsCafeManagement.Services.EmployeeService;
 
 namespace HillsCafeManagement.ViewModels
 {
-    public class EmployeeProfileViewModel : INotifyPropertyChanged
+    // NOTE: Removed the local IEmployeeService from ViewModels to avoid conflicts.
+    // Use the Services-layer interface via the aliases above.
+
+    public sealed class EmployeeProfileViewModel : INotifyPropertyChanged
     {
-        private readonly EmployeeService _service = new EmployeeService();
+        private readonly IEmployeeService _service;
+
+        // -----------------------------
+        // Ctors (choose one at creation time)
+        // -----------------------------
+
+        // 1) Preferred: pass the known employeeId + DI for service
+        public EmployeeProfileViewModel(int employeeId, IEmployeeService? service = null)
+        {
+            _service = service ?? new EmployeeService();
+            InitializeCommands();
+            if (employeeId > 0)
+            {
+                _employeeId = employeeId;
+                LoadEmployee(_employeeId);
+            }
+        }
+
+        // 2) Alternative: pass the logged-in UserModel (like Sidebar does), we’ll extract employeeId
+        public EmployeeProfileViewModel(UserModel user, IEmployeeService? service = null)
+            : this(user?.Employee?.Id ?? 0, service) { }
+
+        // 3) Last resort: you can still new-up with no args (e.g., designer),
+        // but nothing will load until EmployeeId is set manually.
+        public EmployeeProfileViewModel() : this(0, null) { }
 
         // -----------------------------
         // Bindable state
@@ -25,8 +56,9 @@ namespace HillsCafeManagement.ViewModels
             {
                 if (Set(ref _employeeId, value))
                 {
-                    // auto-load when bound id changes
-                    if (_employeeId > 0) LoadEmployee(_employeeId);
+                    CommandManager.InvalidateRequerySuggested();
+                    if (_employeeId > 0)
+                        LoadEmployee(_employeeId);
                 }
             }
         }
@@ -35,14 +67,28 @@ namespace HillsCafeManagement.ViewModels
         public EmployeeModel? Employee
         {
             get => _employee;
-            set => Set(ref _employee, value);
+            set
+            {
+                if (Set(ref _employee, value))
+                {
+                    OnPropertyChanged(nameof(DisplayName));
+                    OnPropertyChanged(nameof(DisplayPosition));
+                }
+            }
         }
+
+        public string DisplayName => Employee?.FullName ?? "—";
+        public string DisplayPosition => string.IsNullOrWhiteSpace(Employee?.Position) ? "—" : Employee!.Position;
 
         private bool _isBusy;
         public bool IsBusy
         {
             get => _isBusy;
-            set { if (Set(ref _isBusy, value)) RaiseCanExecutes(); }
+            set
+            {
+                if (Set(ref _isBusy, value))
+                    CommandManager.InvalidateRequerySuggested();
+            }
         }
 
         private string _statusMessage = string.Empty;
@@ -55,18 +101,29 @@ namespace HillsCafeManagement.ViewModels
         // -----------------------------
         // Commands
         // -----------------------------
-        public ICommand LoadCommand { get; }
-        public ICommand SaveCommand { get; }
-        public ICommand ChangePhotoCommand { get; }
-        public ICommand RefreshCommand { get; }
+        public ICommand LoadCommand { get; private set; } = null!;
+        public ICommand SaveCommand { get; private set; } = null!;
+        public ICommand ChangePhotoCommand { get; private set; } = null!;
+        public ICommand RefreshCommand { get; private set; } = null!;
 
-        public EmployeeProfileViewModel()
+        private void InitializeCommands()
         {
-            LoadCommand = new RelayCommand(_ => LoadEmployee(EmployeeId), _ => !IsBusy && EmployeeId > 0);
-            SaveCommand = new RelayCommand(_ => SaveEmployee(), _ => !IsBusy && Employee != null && Employee.Id > 0);
-            ChangePhotoCommand = new RelayCommand(_ => ChangePhoto(), _ => !IsBusy && Employee != null && Employee.Id > 0);
-            RefreshCommand = new RelayCommand(_ => LoadEmployee(EmployeeId), _ => !IsBusy && EmployeeId > 0);
+            LoadCommand = new RelayCommand(_ => LoadEmployee(EmployeeId),
+                                           _ => !IsBusy && EmployeeId > 0);
+
+            SaveCommand = new RelayCommand(_ => SaveEmployee(),
+                                           _ => !IsBusy && Employee is { Id: > 0 });
+
+            ChangePhotoCommand = new RelayCommand(_ => ChangePhoto(),
+                                                  _ => !IsBusy && Employee is { Id: > 0 });
+
+            RefreshCommand = new RelayCommand(_ => LoadEmployee(EmployeeId),
+                                              _ => !IsBusy && EmployeeId > 0);
         }
+
+        // Convenience (if code-behind wants to call)
+        public void Load() => LoadEmployee(EmployeeId);
+        public void Save() => SaveEmployee();
 
         // -----------------------------
         // Ops
@@ -74,28 +131,21 @@ namespace HillsCafeManagement.ViewModels
         private void LoadEmployee(int id)
         {
             if (id <= 0) { StatusMessage = "Invalid employee id."; return; }
+
             try
             {
                 IsBusy = true;
 
-                // If you don’t use GetEmployeeById(), this still compiles; it just falls back to list + find.
                 var one = _service.GetEmployeeById(id);
                 if (one == null)
                 {
+                    // Fallback if service shape differs
                     var list = _service.GetAllEmployees();
                     one = list.Find(e => e.Id == id);
                 }
 
-                if (one == null)
-                {
-                    StatusMessage = $"Employee #{id} not found.";
-                    Employee = null;
-                }
-                else
-                {
-                    Employee = one;
-                    StatusMessage = $"Loaded employee #{id}.";
-                }
+                Employee = one;
+                StatusMessage = one == null ? $"Employee #{id} not found." : $"Loaded employee #{id}.";
             }
             catch (Exception ex)
             {
@@ -109,7 +159,7 @@ namespace HillsCafeManagement.ViewModels
 
         private void SaveEmployee()
         {
-            if (Employee == null || Employee.Id <= 0)
+            if (Employee is not { Id: > 0 })
             {
                 StatusMessage = "Nothing to save.";
                 return;
@@ -118,13 +168,11 @@ namespace HillsCafeManagement.ViewModels
             try
             {
                 IsBusy = true;
+
                 var ok = _service.UpdateEmployee(Employee);
                 StatusMessage = ok ? "Profile updated." : "No changes were saved.";
-                if (ok)
-                {
-                    // reload to reflect DB state
-                    LoadEmployee(Employee.Id);
-                }
+
+                if (ok) LoadEmployee(Employee.Id);
             }
             catch (Exception ex)
             {
@@ -138,7 +186,7 @@ namespace HillsCafeManagement.ViewModels
 
         private void ChangePhoto()
         {
-            if (Employee == null || Employee.Id <= 0)
+            if (Employee is not { Id: > 0 })
             {
                 StatusMessage = "Load an employee first.";
                 return;
@@ -153,20 +201,24 @@ namespace HillsCafeManagement.ViewModels
                     CheckFileExists = true,
                     Multiselect = false
                 };
-
                 if (ofd.ShowDialog() != true) return;
 
                 IsBusy = true;
 
-                // Save path (or copy to your assets folder if you prefer)
                 var path = ofd.FileName;
 
-                // Update DB image first to keep data safe
+                // Prefer dedicated endpoint, fall back to full update
                 var ok = _service.UpdateEmployeeImage(Employee.Id, path);
+                if (!ok)
+                {
+                    Employee.ImageUrl = path;
+                    ok = _service.UpdateEmployee(Employee);
+                }
+
                 if (ok)
                 {
-                    // reflect in UI
                     Employee.ImageUrl = path;
+                    // raise for bindings that listen to Employee.* directly
                     OnPropertyChanged(nameof(Employee));
                     StatusMessage = "Photo updated.";
                 }
@@ -183,18 +235,6 @@ namespace HillsCafeManagement.ViewModels
             {
                 IsBusy = false;
             }
-        }
-
-        // -----------------------------
-        // Helpers
-        // -----------------------------
-        private void RaiseCanExecutes()
-        {
-            // If your RelayCommand exposes RaiseCanExecuteChanged(), call it here.
-            (LoadCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            (ChangePhotoCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            (RefreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
 
         // -----------------------------
