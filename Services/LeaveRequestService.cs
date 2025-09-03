@@ -1,13 +1,11 @@
 ﻿using HillsCafeManagement.Models;
 using MySql.Data.MySqlClient;
-using System;
-using System.Collections.Generic;
-using System.Data;
 
 namespace HillsCafeManagement.Services
 {
     public interface ILeaveRequestService
     {
+        // Core API
         int Create(LeaveRequestModel model);
         bool Update(LeaveRequestModel model);
         bool UpdateStatus(int id, LeaveStatus status, int? approverUserId = null);
@@ -19,14 +17,63 @@ namespace HillsCafeManagement.Services
         bool Reject(int id, int approverUserId);
         bool Cancel(int id);
         bool IsOnApprovedLeave(int employeeId, DateTime date);
+
+        // Convenience: you only have a userId
+        int CreateForUser(int userId, LeaveRequestModel model);
+        List<LeaveRequestModel> GetForUser(int userId, DateTime? from = null, DateTime? to = null, LeaveStatus? status = null);
+        bool IsOnApprovedLeaveForUser(int userId, DateTime date);
     }
 
     public sealed class LeaveRequestService : ILeaveRequestService
     {
         private readonly string _cs = "server=localhost;user=root;password=;database=hillscafe_db;";
 
+        // ===== user -> employee resolver (FIX: read from users.employee_id) =====
+        private int GetEmployeeIdOrThrow(int userId)
+        {
+            using var conn = new MySqlConnection(_cs);
+            conn.Open();
+
+            const string sql = @"
+                SELECT employee_id
+                FROM users
+                WHERE id = @uid
+                LIMIT 1;";
+
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@uid", userId);
+
+            var res = cmd.ExecuteScalar();
+            if (res == null || res == DBNull.Value)
+                throw new InvalidOperationException("No employee profile linked to this user.");
+
+            return Convert.ToInt32(res);
+        }
+
+        public int CreateForUser(int userId, LeaveRequestModel m)
+        {
+            m.EmployeeId = GetEmployeeIdOrThrow(userId);
+            return Create(m);
+        }
+
+        public List<LeaveRequestModel> GetForUser(int userId, DateTime? from = null, DateTime? to = null, LeaveStatus? status = null)
+        {
+            var empId = GetEmployeeIdOrThrow(userId);
+            return GetForEmployee(empId, from, to, status);
+        }
+
+        public bool IsOnApprovedLeaveForUser(int userId, DateTime date)
+        {
+            var empId = GetEmployeeIdOrThrow(userId);
+            return IsOnApprovedLeave(empId, date);
+        }
+
+        // ==================== core ====================
         public int Create(LeaveRequestModel m)
         {
+            if (m.EmployeeId <= 0)
+                throw new ArgumentException("EmployeeId must be a valid employees.id", nameof(m.EmployeeId));
+
             using var conn = new MySqlConnection(_cs);
             conn.Open();
 
@@ -49,7 +96,6 @@ SELECT LAST_INSERT_ID();";
             return Convert.ToInt32(cmd.ExecuteScalar());
         }
 
-        // Full-field update (includes Status). Typed params + NULL-safe.
         public bool Update(LeaveRequestModel m)
         {
             using var conn = new MySqlConnection(_cs);
@@ -79,7 +125,6 @@ WHERE id = @id;";
             return cmd.ExecuteNonQuery() > 0;
         }
 
-        // Safer when status lang ang nagbago (also writes approver/timestamp if applicable)
         public bool UpdateStatus(int id, LeaveStatus status, int? approverUserId = null)
         {
             using var conn = new MySqlConnection(_cs);
@@ -89,7 +134,6 @@ WHERE id = @id;";
 UPDATE leave_requests
 SET status = @status, updated_at = NOW()";
 
-            // set approver + approved_at only for Approved/Rejected
             if (status == LeaveStatus.Approved || status == LeaveStatus.Rejected)
                 sql += ", approver_id = @approver, approved_at = NOW()";
 

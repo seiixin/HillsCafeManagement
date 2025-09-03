@@ -13,13 +13,15 @@ namespace HillsCafeManagement.Services
         bool UpdateEmployeeImage(int employeeId, string imageUrl);
         bool AddEmployee(EmployeeModel employee);
         bool DeleteEmployee(int employeeId);
+
+        // NEW: map logged-in user (users.id) -> employees.id
+        int? GetEmployeeIdByUserId(int userId);
     }
 
     public sealed class EmployeeService : IEmployeeService
     {
         private readonly string _connectionString;
 
-        // Allow DI / config to provide the connection string; default to your current literal.
         public EmployeeService(string? connectionString = null)
         {
             _connectionString = string.IsNullOrWhiteSpace(connectionString)
@@ -182,7 +184,6 @@ namespace HillsCafeManagement.Services
         // UPDATE
         // =====================================================================
 
-        // Keep this exact name/signature to satisfy existing callers
         public bool UpdateEmployee(EmployeeModel employee)
         {
             try
@@ -293,7 +294,28 @@ namespace HillsCafeManagement.Services
         }
 
         // =====================================================================
-        // Mapper
+        // USER → EMPLOYEE MAPPING (NEW)
+        // =====================================================================
+
+        public int? GetEmployeeIdByUserId(int userId)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            // Your schema: users.employee_id -> employees.id
+            const string sql = "SELECT employee_id FROM users WHERE id = @uid LIMIT 1;";
+            using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@uid", userId);
+
+            var res = cmd.ExecuteScalar();
+            if (res == null || res == DBNull.Value) return null;
+
+            var empId = Convert.ToInt32(res);
+            return empId == 0 ? (int?)null : empId;
+        }
+
+        // =====================================================================
+        // Mapper / helpers
         // =====================================================================
 
         private static EmployeeModel MapEmployee(MySqlDataReader r) => new EmployeeModel

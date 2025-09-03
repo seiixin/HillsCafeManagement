@@ -56,7 +56,7 @@ namespace HillsCafeManagement.ViewModels
         // UI state
         // -----------------------------
         private string _selectedMenuItem = string.Empty;
-        private UserControl _currentView;
+        private UserControl _currentView = new UserControl();
 
         public SidebarViewModel(int employeeId, IEmployeeService? service = null)
         {
@@ -220,7 +220,7 @@ namespace HillsCafeManagement.ViewModels
         }
 
         // -----------------------------
-        // Menu / Navigation (unchanged logic)
+        // Menu / Navigation
         // -----------------------------
         private void InitializeMenuItems()
         {
@@ -307,7 +307,9 @@ namespace HillsCafeManagement.ViewModels
 
                 case "attendance":
                     if (IsAdmin) CurrentView = new AttendanceAdminView();
-                    else if (IsEmployee) CurrentView = new AttendanceView();
+                    else if (IsEmployee)
+                        // IMPORTANT: pass the known employee id into the employee Attendance view
+                        CurrentView = new AttendanceView(_employeeId);
                     break;
 
                 case "menu":

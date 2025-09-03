@@ -5,11 +5,18 @@ namespace HillsCafeManagement.Views.Employee.Attendance
 {
     public partial class AttendanceView : UserControl
     {
+        // Default (for XAML designer and cases where no employee id is passed)
         public AttendanceView()
         {
             InitializeComponent();
-            // Bind to the updated VM that includes list + filters + refresh
             DataContext = new AttendanceEmployeeViewModel();
+        }
+
+        // NEW overload: allows passing employeeId directly (used by SidebarViewModel)
+        public AttendanceView(int employeeId)
+        {
+            InitializeComponent();
+            DataContext = new AttendanceEmployeeViewModel(employeeId);
         }
     }
 }
