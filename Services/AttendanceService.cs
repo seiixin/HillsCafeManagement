@@ -41,7 +41,63 @@ namespace HillsCafeManagement.Services
 
     public class AttendanceService
     {
-        private readonly string connectionString = "server=localhost;user=root;password=;database=hillscafe_db;";
+        private readonly string _connectionString;
+
+        public AttendanceService(string? connectionString = null)
+        {
+            _connectionString = string.IsNullOrWhiteSpace(connectionString)
+                ? "server=localhost;user=root;password=;database=hillscafe_db;"
+                : connectionString!;
+        }
+
+        // =========================
+        // REQUIRED: Worked-days counter
+        // =========================
+
+        /// <summary>
+        /// Counts DISTINCT attendance dates for an employee in [start, end] where BOTH time_in AND time_out are NOT NULL.
+        /// Time components are ignored (date-only comparison).
+        /// </summary>
+        public int GetWorkedDaysCount(int employeeId, DateTime start, DateTime end)
+        {
+            // normalize order and strip time
+            var s = start.Date;
+            var e = end.Date;
+            if (e < s) (s, e) = (e, s);
+
+            try
+            {
+                using var conn = new MySqlConnection(_connectionString);
+                conn.Open();
+
+                const string sql = @"
+                    SELECT COUNT(DISTINCT a.date)
+                    FROM attendance a
+                    WHERE a.employee_id = @empId
+                      AND a.date BETWEEN @start AND @end
+                      AND a.time_in IS NOT NULL
+                      AND a.time_out IS NOT NULL;";
+
+                using var cmd = new MySqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@empId", employeeId);
+                cmd.Parameters.Add("@start", MySqlDbType.Date).Value = s;
+                cmd.Parameters.Add("@end", MySqlDbType.Date).Value = e;
+
+                var obj = cmd.ExecuteScalar();
+                return (obj == null || obj == DBNull.Value) ? 0 : Convert.ToInt32(obj);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("GetWorkedDaysCount error: " + ex.Message);
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Alias for compatibility with existing callers.
+        /// </summary>
+        public int CountWorkedDays(int employeeId, DateTime start, DateTime end)
+            => GetWorkedDaysCount(employeeId, start, end);
 
         // =========================
         // Auto-NOW versions (no timestamp passed)
@@ -54,7 +110,7 @@ namespace HillsCafeManagement.Services
         public void ClockIn(int employeeId)
         {
             ValidateWithinScheduledShiftOrThrow(employeeId, DateTime.Now);
-            using var conn = new MySqlConnection(connectionString);
+            using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
             const string sql = @"
@@ -74,7 +130,7 @@ namespace HillsCafeManagement.Services
         {
             ValidateWithinScheduledShiftOrThrow(employeeId, DateTime.Now);
 
-            using var conn = new MySqlConnection(connectionString);
+            using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
             const string sql = @"
@@ -107,7 +163,7 @@ namespace HillsCafeManagement.Services
         {
             ValidateWithinScheduledShiftOrThrow(employeeId, timestamp);
 
-            using var conn = new MySqlConnection(connectionString);
+            using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
             const string sql = @"
@@ -129,7 +185,7 @@ namespace HillsCafeManagement.Services
         {
             ValidateWithinScheduledShiftOrThrow(employeeId, timestamp);
 
-            using var conn = new MySqlConnection(connectionString);
+            using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
             const string sql = @"
@@ -159,10 +215,10 @@ namespace HillsCafeManagement.Services
         public List<AttendanceModel> GetAttendances(DateTime? date = null, int? employeeId = null)
         {
             var results = new List<AttendanceModel>();
-            using var conn = new MySqlConnection(connectionString);
+            using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
-            var sql = "SELECT * FROM attendance WHERE 1=1";
+            var sql = "SELECT id, employee_id, date, time_in, time_out, status FROM attendance WHERE 1=1";
             if (date.HasValue) sql += " AND date = @date";
             if (employeeId.HasValue) sql += " AND employee_id = @employeeId";
             sql += " ORDER BY date DESC, time_in DESC, id DESC";
@@ -183,7 +239,7 @@ namespace HillsCafeManagement.Services
                     Date = reader.GetDateTime("date"),
                     TimeIn = reader.IsDBNull(reader.GetOrdinal("time_in")) ? (TimeSpan?)null : reader.GetTimeSpan("time_in"),
                     TimeOut = reader.IsDBNull(reader.GetOrdinal("time_out")) ? (TimeSpan?)null : reader.GetTimeSpan("time_out"),
-                    Status = reader.GetString("status")
+                    Status = reader.IsDBNull(reader.GetOrdinal("status")) ? null : reader.GetString("status")
                 });
             }
             return results;
@@ -191,7 +247,7 @@ namespace HillsCafeManagement.Services
 
         public void AddAttendance(AttendanceModel model)
         {
-            using var conn = new MySqlConnection(connectionString);
+            using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
             const string sql = @"
@@ -201,39 +257,39 @@ namespace HillsCafeManagement.Services
             using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@employeeId", model.EmployeeId);
             cmd.Parameters.Add("@date", MySqlDbType.Date).Value = model.Date.Date;
-            cmd.Parameters.Add("@timeIn", MySqlDbType.Time).Value = (object?)model.TimeIn ?? DBNull.Value;
-            cmd.Parameters.Add("@timeOut", MySqlDbType.Time).Value = (object?)model.TimeOut ?? DBNull.Value;
+            cmd.Parameters.Add("@timeIn", MySqlDbType.Time).Value = model.TimeIn is null ? DBNull.Value : model.TimeIn;
+            cmd.Parameters.Add("@timeOut", MySqlDbType.Time).Value = model.TimeOut is null ? DBNull.Value : model.TimeOut;
             cmd.Parameters.AddWithValue("@status", model.Status ?? "Present");
             cmd.ExecuteNonQuery();
         }
 
         public void UpdateAttendance(AttendanceModel model)
         {
-            using var conn = new MySqlConnection(connectionString);
+            using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
             const string sql = @"
                 UPDATE attendance
                 SET employee_id = @employeeId,
-                    date = @date,
-                    time_in = @timeIn,
-                    time_out = @timeOut,
-                    status = @status
+                    date        = @date,
+                    time_in     = @timeIn,
+                    time_out    = @timeOut,
+                    status      = @status
                 WHERE id = @id;";
 
             using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@id", model.Id);
             cmd.Parameters.AddWithValue("@employeeId", model.EmployeeId);
             cmd.Parameters.Add("@date", MySqlDbType.Date).Value = model.Date.Date;
-            cmd.Parameters.Add("@timeIn", MySqlDbType.Time).Value = (object?)model.TimeIn ?? DBNull.Value;
-            cmd.Parameters.Add("@timeOut", MySqlDbType.Time).Value = (object?)model.TimeOut ?? DBNull.Value;
+            cmd.Parameters.Add("@timeIn", MySqlDbType.Time).Value = model.TimeIn is null ? DBNull.Value : model.TimeIn;
+            cmd.Parameters.Add("@timeOut", MySqlDbType.Time).Value = model.TimeOut is null ? DBNull.Value : model.TimeOut;
             cmd.Parameters.AddWithValue("@status", model.Status ?? "Present");
             cmd.ExecuteNonQuery();
         }
 
         public void DeleteAttendance(int id)
         {
-            using var conn = new MySqlConnection(connectionString);
+            using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
             const string sql = "DELETE FROM attendance WHERE id = @id;";
@@ -245,7 +301,7 @@ namespace HillsCafeManagement.Services
         public List<AttendanceModel> GetAttendancesForEmployee(int employeeId, DateTime? from = null, DateTime? to = null)
         {
             var results = new List<AttendanceModel>();
-            using var conn = new MySqlConnection(connectionString);
+            using var conn = new MySqlConnection(_connectionString);
             conn.Open();
 
             var sql = @"
@@ -277,7 +333,7 @@ namespace HillsCafeManagement.Services
                     Date = reader.GetDateTime("date"),
                     TimeIn = reader.IsDBNull(reader.GetOrdinal("time_in")) ? (TimeSpan?)null : reader.GetTimeSpan("time_in"),
                     TimeOut = reader.IsDBNull(reader.GetOrdinal("time_out")) ? (TimeSpan?)null : reader.GetTimeSpan("time_out"),
-                    Status = reader.GetString("status")
+                    Status = reader.IsDBNull(reader.GetOrdinal("status")) ? null : reader.GetString("status")
                 });
             }
             return results;
@@ -298,7 +354,7 @@ namespace HillsCafeManagement.Services
             int? workScheduleId = null;
             string? shiftName = null;
 
-            using (var conn = new MySqlConnection(connectionString))
+            using (var conn = new MySqlConnection(_connectionString))
             {
                 conn.Open();
                 const string empSql = @"SELECT work_schedule_id, shift FROM employees WHERE id = @id LIMIT 1;";
@@ -334,7 +390,7 @@ namespace HillsCafeManagement.Services
 
             // 2) Load days_mask
             byte daysMask;
-            using (var conn = new MySqlConnection(connectionString))
+            using (var conn = new MySqlConnection(_connectionString))
             {
                 conn.Open();
                 const string wsSql = @"SELECT days_mask FROM work_schedule WHERE id = @id LIMIT 1;";
@@ -425,7 +481,7 @@ namespace HillsCafeManagement.Services
             => $"{start:hh\\:mm}-{end:hh\\:mm}";
 
         /// <summary>
-        /// Tries DB table `shift_definitions(name,start_time,end_time)` first, then common defaults.
+        /// Tries DB table shift_definitions(name,start_time,end_time) first, then common defaults.
         /// Returns (start,end,source) where source is 'db' or 'default'.
         /// </summary>
         private (TimeSpan start, TimeSpan end, string source) ResolveShiftWindow(string raw)
@@ -435,7 +491,7 @@ namespace HillsCafeManagement.Services
             // 1) Try DB override (table is optional; swallow if missing)
             try
             {
-                using var conn = new MySqlConnection(connectionString);
+                using var conn = new MySqlConnection(_connectionString);
                 conn.Open();
                 const string s = @"SELECT start_time, end_time
                                    FROM shift_definitions
@@ -458,15 +514,15 @@ namespace HillsCafeManagement.Services
 
             // 2) Defaults / aliases
             if (key is "morning" or "am" or "day" or "day shift")
-                return (TimeSpan.FromHours(8), TimeSpan.FromHours(17), "default");    // 08:00–17:00
+                return (TimeSpan.FromHours(8), TimeSpan.FromHours(17), "default"); // 08:00–17:00
 
             if (key is "afternoon" or "pm" or "swing")
-                return (TimeSpan.FromHours(13), TimeSpan.FromHours(22), "default");   // 13:00–22:00
+                return (TimeSpan.FromHours(13), TimeSpan.FromHours(22), "default"); // 13:00–22:00
 
             if (key is "night" or "graveyard" or "evening" or "night shift")
-                return (TimeSpan.FromHours(22), TimeSpan.FromHours(6), "default");    // 22:00–06:00 (cross-midnight)
+                return (TimeSpan.FromHours(22), TimeSpan.FromHours(6), "default"); // 22:00–06:00 (cross-midnight)
 
-            // 3) Final fallback: strict classic day shift
+            // 3) Final fallback
             return (TimeSpan.FromHours(8), TimeSpan.FromHours(17), "default(fallback)");
         }
     }

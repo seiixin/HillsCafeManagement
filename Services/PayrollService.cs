@@ -1,12 +1,7 @@
-﻿// HillsCafeManagement.Services.PayrollService (refactored)
-// - Safe, constructor-only sets connection string (no DB work)
-// - Clear LastError on success; set LastError on failures (caller can surface via MessageBox)
-// - GenerateForPeriod now tries per-day rate in this order:
-//     1) position_salary (via PositionSalaryService.TryGetRate)
-//     2) employees.salary_per_day
-//     3) last payroll’s gross / total_days_worked (fallback)
-// - Minimal queries and fully-parameterized commands
-// - Transactions for batch save
+﻿// Services/PayrollService.cs
+// - Added CountWorkedDays(int employeeId, DateTime start, DateTime end)
+// - GenerateForPeriod(...) now uses the same rule: a worked day requires BOTH time_in AND time_out
+// - GrossSalary = ratePerDay * TotalDaysWorked (optional behavior enabled)
 
 using System;
 using System.Collections.Generic;
@@ -25,6 +20,42 @@ namespace HillsCafeManagement.Services
             _connectionString = string.IsNullOrWhiteSpace(connectionString)
                 ? "server=localhost;user=root;password=;database=hillscafe_db;"
                 : connectionString!;
+        }
+
+        // ---------- Public helper: count worked days ----------
+        /// <summary>
+        /// Counts DISTINCT dates in the attendance table for the given employee within [start, end]
+        /// where BOTH time_in AND time_out are NOT NULL (i.e., a valid completed shift).
+        /// </summary>
+        public int CountWorkedDays(int employeeId, DateTime start, DateTime end)
+        {
+            try
+            {
+                using var conn = new MySqlConnection(_connectionString);
+                conn.Open();
+
+                const string sql = @"
+                    SELECT COUNT(DISTINCT a.date)
+                    FROM attendance a
+                    WHERE a.employee_id = @empId
+                      AND a.date BETWEEN @start AND @end
+                      AND a.time_in IS NOT NULL
+                      AND a.time_out IS NOT NULL;";
+
+                using var cmd = new MySqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@empId", employeeId);
+                cmd.Parameters.AddWithValue("@start", start);
+                cmd.Parameters.AddWithValue("@end", end);
+
+                var obj = cmd.ExecuteScalar();
+                return (obj == null || obj == DBNull.Value) ? 0 : Convert.ToInt32(obj);
+            }
+            catch (Exception ex)
+            {
+                LastError = ex.Message;
+                Console.Error.WriteLine("Error counting worked days: " + ex);
+                return 0;
+            }
         }
 
         // ---------- Period helpers ----------
@@ -47,8 +78,7 @@ namespace HillsCafeManagement.Services
                 using var conn = new MySqlConnection(_connectionString);
                 conn.Open();
 
-                // Include position and salary_per_day if present in schema (best effort).
-                // If those columns don’t exist, adjust your table or comment them out.
+                // Pull employees (include position and salary_per_day if present)
                 const string getEmployeesSql = @"
                     SELECT e.id, e.full_name, e.position, e.salary_per_day
                     FROM employees e;";
@@ -69,38 +99,18 @@ namespace HillsCafeManagement.Services
                     }
                 }
 
-                // Attendance calculations
-                const string attendanceDaysSql = @"
-                    SELECT COUNT(DISTINCT a.date) 
-                    FROM attendance a
-                    WHERE a.employee_id = @empId
-                      AND a.date BETWEEN @start AND @end
-                      AND (a.status = 'Present' OR a.status IS NULL);";
-
-                const string attendanceHoursSql = @"
-                    SELECT IFNULL(SUM(TIME_TO_SEC(TIMEDIFF(a.time_out, a.time_in))/3600), 0)
-                    FROM attendance a
-                    WHERE a.employee_id = @empId
-                      AND a.date BETWEEN @start AND @end
-                      AND a.time_in IS NOT NULL
-                      AND a.time_out IS NOT NULL;";
-
                 // Reuse the PositionSalaryService to fetch position-based rates
                 var posService = new PositionSalaryService(_connectionString);
 
                 foreach (var emp in employees)
                 {
-                    int daysWorked = ExecuteScalarInt(conn, attendanceDaysSql, emp.Id, periodStart, periodEnd);
-                    decimal hoursWorked = ExecuteScalarDecimal(conn, attendanceHoursSql, emp.Id, periodStart, periodEnd);
-
-                    // No leave table yet (placeholders)
-                    int paidLeaveDays = 0;
-                    int unpaidLeaveDays = 0;
+                    // NEW: days worked require BOTH time_in and time_out
+                    int daysWorked = CountWorkedDays(emp.Id, periodStart, periodEnd);
 
                     // Determine ratePerDay:
                     decimal ratePerDay = 0m;
 
-                    // 1) position_salary (active, newest by UpdatedAt)
+                    // 1) position_salary (active, newest)
                     if (!string.IsNullOrWhiteSpace(emp.Position) &&
                         posService.TryGetRate(emp.Position, out var rateFromPosition) &&
                         rateFromPosition > 0)
@@ -118,12 +128,11 @@ namespace HillsCafeManagement.Services
                         ratePerDay = GetLastPerDayRate(conn, emp.Id);
                     }
 
-                    decimal gross = ratePerDay * (daysWorked + paidLeaveDays);
-                    decimal unpaidLeaveDeduction = ratePerDay * unpaidLeaveDays;
+                    // (Optional) Gross = ratePerDay * TotalDaysWorked
+                    decimal gross = Math.Round(ratePerDay * daysWorked, 2);
 
                     // Statutory placeholders (adjust with real rules later)
-                    decimal sss = 0m, philhealth = 0m, pagibig = 0m, bonus = 0m;
-                    decimal otherDeductions = unpaidLeaveDeduction;
+                    decimal sss = 0m, philhealth = 0m, pagibig = 0m, bonus = 0m, otherDeductions = 0m;
                     decimal net = Math.Max(0m, gross - (sss + philhealth + pagibig + otherDeductions) + bonus);
 
                     results.Add(new PayrollModel
@@ -133,14 +142,14 @@ namespace HillsCafeManagement.Services
                         StartDate = periodStart.Date,
                         EndDate = periodEnd.Date,
                         TotalDaysWorked = daysWorked,
-                        GrossSalary = Math.Round(gross, 2),
+                        GrossSalary = gross,
                         SssDeduction = Math.Round(sss, 2),
                         PhilhealthDeduction = Math.Round(philhealth, 2),
                         PagibigDeduction = Math.Round(pagibig, 2),
                         OtherDeductions = Math.Round(otherDeductions, 2),
                         Bonus = Math.Round(bonus, 2),
                         NetSalary = Math.Round(net, 2),
-                        BranchName = null, // optional: fill from another table
+                        BranchName = null,
                         ShiftType = null
                     });
                 }
@@ -333,26 +342,6 @@ namespace HillsCafeManagement.Services
         }
 
         // ---------- helpers ----------
-        private static int ExecuteScalarInt(MySqlConnection conn, string sql, int empId, DateTime start, DateTime end)
-        {
-            using var cmd = new MySqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@empId", empId);
-            cmd.Parameters.AddWithValue("@start", start);
-            cmd.Parameters.AddWithValue("@end", end);
-            var obj = cmd.ExecuteScalar();
-            return (obj == null || obj == DBNull.Value) ? 0 : Convert.ToInt32(obj);
-        }
-
-        private static decimal ExecuteScalarDecimal(MySqlConnection conn, string sql, int empId, DateTime start, DateTime end)
-        {
-            using var cmd = new MySqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@empId", empId);
-            cmd.Parameters.AddWithValue("@start", start);
-            cmd.Parameters.AddWithValue("@end", end);
-            var obj = cmd.ExecuteScalar();
-            return (obj == null || obj == DBNull.Value) ? 0m : Convert.ToDecimal(obj);
-        }
-
         private static decimal GetLastPerDayRate(MySqlConnection conn, int empId)
         {
             const string sql = @"

@@ -1,4 +1,5 @@
-﻿using HillsCafeManagement.Models;
+﻿#nullable enable
+using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
 using System;
 using System.Collections.Generic;
@@ -20,7 +21,7 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
         public delegate void PayrollSavedHandler();
         public event PayrollSavedHandler? OnPayrollSaved;
 
-        // NEW: let the host close the overlay cleanly
+        // Let the host close the overlay cleanly
         public event Action? CloseRequested;
 
         public AddEditPayroll(PayrollModel? payroll = null)
@@ -29,8 +30,14 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
 
             DataContext = this;
 
+            // Load employees
             Employees = _employeeService.GetAllEmployees();
             EmployeeComboBox.ItemsSource = Employees;
+
+            // Hook change events that should trigger recalculation
+            EmployeeComboBox.SelectionChanged += RecalcInputs_Changed;
+            StartDatePicker.SelectedDateChanged += RecalcInputs_Changed;
+            EndDatePicker.SelectedDateChanged += RecalcInputs_Changed;
 
             if (payroll != null)
             {
@@ -42,7 +49,10 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
                 EmployeeComboBox.SelectedValue = payroll.EmployeeId;
                 StartDatePicker.SelectedDate = payroll.StartDate;
                 EndDatePicker.SelectedDate = payroll.EndDate;
+
+                // We'll overwrite DaysWorkedTextBox via RecalculateDaysWorked(), but set initial visible values:
                 DaysWorkedTextBox.Text = payroll.TotalDaysWorked.ToString();
+
                 GrossSalaryTextBox.Text = payroll.GrossSalary.ToString("0.00");
                 SSSTextBox.Text = (payroll?.SssDeduction ?? 0).ToString("0.00");
                 PhilhealthTextBox.Text = payroll.PhilhealthDeduction.ToString("0.00");
@@ -52,13 +62,98 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
                 NetSalaryTextBox.Text = payroll.NetSalary.ToString("0.00");
                 BranchNameTextBox.Text = payroll.BranchName;
                 ShiftTypeTextBox.Text = payroll.ShiftType;
+
+                // Ensure we reflect the latest attendance-based value
+                RecalculateDaysWorked();
             }
             else
             {
                 _isEditMode = false;
                 TitleText.Text = "Add New Payroll";
+
+                // If dates already have defaults (e.g., today), compute immediately
+                RecalculateDaysWorked();
             }
         }
+
+        // ========================
+        // Event wiring
+        // ========================
+
+        private void RecalcInputs_Changed(object sender, RoutedEventArgs e)
+        {
+            RecalculateDaysWorked();
+        }
+
+        // ========================
+        // Core: attendance → days
+        // ========================
+
+        /// <summary>
+        /// Reads current Employee/Start/End inputs, calls a service method that counts
+        /// valid shifts (rows having both time_in AND time_out) in range, and pushes
+        /// the result to DaysWorkedTextBox. If inputs are incomplete/invalid, shows 0.
+        /// </summary>
+        private void RecalculateDaysWorked()
+        {
+            if (!TryGetInputs(out var employeeId, out var start, out var end))
+            {
+                DaysWorkedTextBox.Text = "0";
+                return;
+            }
+
+            // Guard: date order
+            if (end < start)
+            {
+                DaysWorkedTextBox.Text = "0";
+                return;
+            }
+
+            try
+            {
+                // This method must implement: COUNT(*) (or COUNT DISTINCT date)
+                // FROM attendance WHERE employee_id=@id AND date BETWEEN @start AND @end
+                //   AND time_in IS NOT NULL AND time_out IS NOT NULL
+                // If you haven't added it yet, implement it in PayrollService (or AttendanceService)
+                // exactly as per your DB schema.
+                int days = _payrollService.CountWorkedDays(employeeId, start, end);
+                DaysWorkedTextBox.Text = days.ToString();
+            }
+            catch (Exception ex)
+            {
+                // Non-fatal; reflect unknown as 0 and log
+                DaysWorkedTextBox.Text = "0";
+                Console.Error.WriteLine("Failed to recalc days worked: " + ex.Message);
+            }
+        }
+
+        private bool TryGetInputs(out int employeeId, out DateTime start, out DateTime end)
+        {
+            employeeId = 0;
+            start = default;
+            end = default;
+
+            if (EmployeeComboBox.SelectedValue is int eid)
+                employeeId = eid;
+            else
+                return false;
+
+            if (StartDatePicker.SelectedDate is DateTime s)
+                start = s.Date;
+            else
+                return false;
+
+            if (EndDatePicker.SelectedDate is DateTime e)
+                end = e.Date;
+            else
+                return false;
+
+            return true;
+        }
+
+        // ========================
+        // Buttons
+        // ========================
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
@@ -67,20 +162,44 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
 
         private void Save_Click(object sender, RoutedEventArgs e)
         {
-            if (EmployeeComboBox.SelectedValue == null ||
-                !DateTime.TryParse(StartDatePicker.Text, out var startDate) ||
-                !DateTime.TryParse(EndDatePicker.Text, out var endDate))
+            // Re-validate inputs
+            if (!TryGetInputs(out var employeeId, out var startDate, out var endDate))
             {
-                MessageBox.Show("Please fill required fields.");
+                MessageBox.Show("Please select Employee, Start Date, and End Date.", "Validation",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
+            if (endDate < startDate)
+            {
+                MessageBox.Show("End Date cannot be earlier than Start Date.", "Validation",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // IMPORTANT: ignore any manual text and use a fresh calculation
+            int totalDaysWorked;
+            try
+            {
+                totalDaysWorked = _payrollService.CountWorkedDays(employeeId, startDate, endDate);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Failed to compute Total Days Worked on save: " + ex.Message);
+                MessageBox.Show("Unable to compute Total Days Worked from attendance.", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            // Push the computed value to UI (for user feedback) before saving
+            DaysWorkedTextBox.Text = totalDaysWorked.ToString();
+
             var payroll = new PayrollModel
             {
-                EmployeeId = (int)EmployeeComboBox.SelectedValue,
+                EmployeeId = employeeId,
                 StartDate = startDate,
                 EndDate = endDate,
-                TotalDaysWorked = int.TryParse(DaysWorkedTextBox.Text, out var d) ? d : 0,
+                TotalDaysWorked = totalDaysWorked, // authoritative value
                 GrossSalary = decimal.TryParse(GrossSalaryTextBox.Text, out var g) ? g : 0,
                 SssDeduction = decimal.TryParse(SSSTextBox.Text, out var s) ? s : 0,
                 PhilhealthDeduction = decimal.TryParse(PhilhealthTextBox.Text, out var ph) ? ph : 0,
@@ -93,19 +212,30 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
             };
 
             bool success;
-
             if (_isEditMode && _editingPayroll != null)
             {
                 payroll.Id = _editingPayroll.Id;
                 success = _payrollService.UpdatePayroll(payroll);
-                if (!success) { MessageBox.Show("Failed to update payroll."); return; }
-                MessageBox.Show("Payroll updated successfully.");
+                if (!success)
+                {
+                    MessageBox.Show("Failed to update payroll.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                MessageBox.Show("Payroll updated successfully.", "Success",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
                 success = _payrollService.AddPayroll(payroll);
-                if (!success) { MessageBox.Show("Failed to add payroll."); return; }
-                MessageBox.Show("Payroll added successfully.");
+                if (!success)
+                {
+                    MessageBox.Show("Failed to add payroll.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                MessageBox.Show("Payroll added successfully.", "Success",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
             OnPayrollSaved?.Invoke();

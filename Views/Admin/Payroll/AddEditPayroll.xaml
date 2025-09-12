@@ -48,10 +48,18 @@
                 <DatePicker x:Name="EndDatePicker"
                             Margin="0,0,0,10" />
 
-                <!-- Total Days Worked -->
+                <!-- Total Days Worked (auto) -->
                 <TextBlock Text="Total Days Worked:" FontWeight="Bold" />
                 <TextBox x:Name="DaysWorkedTextBox"
-                         Margin="0,0,0,10" />
+                         Margin="0,0,0,4"
+                         IsReadOnly="True"
+                         IsEnabled="False"
+                         ToolTip="Auto-calculated from attendance (count of shifts with both time in &amp; time out)." />
+                <TextBlock Text="(Auto-calculated from attendance)"
+                           Foreground="#666"
+                           FontStyle="Italic"
+                           FontSize="11"
+                           Margin="0,0,0,10"/>
 
                 <!-- Gross Salary -->
                 <TextBlock Text="Gross Salary:" FontWeight="Bold" />
