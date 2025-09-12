@@ -1,12 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Markup;                 // XamlParseException
 using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
 using HillsCafeManagement.ViewModels;
-using HillsCafeManagement.Views.Admin.Payrolls;
+using HillsCafeManagement.Views.Admin.Payrolls; // AddEditPayroll
+using HillsCafeManagement.Views.Admin.Payroll;  // PositionSalaryEdit
 
 namespace HillsCafeManagement.Views.Admin.Payroll
 {
@@ -18,7 +20,27 @@ namespace HillsCafeManagement.Views.Admin.Payroll
 
         public Payroll()
         {
-            InitializeComponent();
+            try
+            {
+                InitializeComponent();
+            }
+            catch (XamlParseException xpe)
+            {
+                var root = xpe.InnerException ?? xpe;
+                MessageBox.Show(
+                    $"UI load failed (XAML).\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Payroll", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            catch (Exception ex)
+            {
+                var root = ex.InnerException ?? ex;
+                MessageBox.Show(
+                    $"UI load failed.\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Payroll", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             DataContext = _vm;
             RefreshFromDatabase();
         }
@@ -37,20 +59,116 @@ namespace HillsCafeManagement.Views.Admin.Payroll
 
         private void AddPayroll_Click(object sender, RoutedEventArgs e)
         {
-            var editor = new AddEditPayroll();
-            editor.OnPayrollSaved += RefreshFromDatabase;
-            editor.CloseRequested += CloseOverlay;
-            ShowOverlay(editor);
+            try
+            {
+                var editor = new AddEditPayroll();
+                editor.OnPayrollSaved += RefreshFromDatabase;
+                editor.CloseRequested += CloseOverlay;
+                ShowOverlay(editor);
+            }
+            catch (XamlParseException xpe)
+            {
+                var root = xpe.InnerException ?? xpe;
+                MessageBox.Show(
+                    $"Failed to open Add Payroll (XAML).\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (Exception ex)
+            {
+                var root = ex.InnerException ?? ex;
+                MessageBox.Show(
+                    $"Failed to open Add Payroll.\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void EditPayroll_Click(object sender, RoutedEventArgs e)
         {
             if ((sender as FrameworkElement)?.DataContext is not PayrollModel row) return;
 
-            var editor = new AddEditPayroll(row);
-            editor.OnPayrollSaved += RefreshFromDatabase;
-            editor.CloseRequested += CloseOverlay;
-            ShowOverlay(editor);
+            try
+            {
+                var editor = new AddEditPayroll(row);
+                editor.OnPayrollSaved += RefreshFromDatabase;
+                editor.CloseRequested += CloseOverlay;
+                ShowOverlay(editor);
+            }
+            catch (XamlParseException xpe)
+            {
+                var root = xpe.InnerException ?? xpe;
+                MessageBox.Show(
+                    $"Failed to open Edit Payroll (XAML).\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (Exception ex)
+            {
+                var root = ex.InnerException ?? ex;
+                MessageBox.Show(
+                    $"Failed to open Edit Payroll.\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // ===== Open Positions & Salaries (safe DB checks; no unhandled throws) =====
+        private void OpenPositionSalary_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var service = new PositionSalaryService();
+
+                // Ensure schema exists (non-throwing)
+                if (!service.TryEnsureSchema())
+                {
+                    MessageBox.Show(
+                        "Positions & Salaries isn't ready (schema).\n\n" + (service.LastError ?? "Unknown error."),
+                        "Database Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Probe accessibility (non-throwing)
+                if (!service.IsDbReady())
+                {
+                    MessageBox.Show(
+                        "Positions & Salaries table is not accessible.\n\n" + (service.LastError ?? "Unknown error."),
+                        "Database Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Open the editor; the view will call VM.Load() on Loaded
+                var vm = new PositionSalaryViewModel(service);
+
+                PositionSalaryEdit setup;
+                try
+                {
+                    setup = new PositionSalaryEdit(vm);
+                }
+                catch (XamlParseException xpe)
+                {
+                    var root = xpe.InnerException ?? xpe;
+                    MessageBox.Show(
+                        $"Failed to open Positions & Salaries (XAML).\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                catch (Exception ex2)
+                {
+                    var root = ex2.InnerException ?? ex2;
+                    MessageBox.Show(
+                        $"Failed to open Positions & Salaries.\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                setup.CloseRequested += CloseOverlay;
+                ShowOverlay(setup);
+            }
+            catch (Exception ex)
+            {
+                var root = ex.InnerException ?? ex;
+                MessageBox.Show("Failed to open Positions & Salaries.\n\n" +
+                                $"{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         public bool DeletePayrollById(int id)
@@ -60,26 +178,47 @@ namespace HillsCafeManagement.Views.Admin.Payroll
             return ok;
         }
 
+        // ===== Overlay host utilities =====
         private void ShowOverlay(UserControl editor)
         {
-            var host = RootGrid.Children
-                               .OfType<ContentControl>()
-                               .FirstOrDefault(c => c.Name == "OverlayHost");
-            if (host == null)
+            try
             {
-                host = new ContentControl { Name = "OverlayHost" };
-                Grid.SetRow(host, 3); // overlay above the DataGrid row
-                RootGrid.Children.Add(host);
+                var host = RootGrid.Children
+                                   .OfType<ContentControl>()
+                                   .FirstOrDefault(c => c.Name == "OverlayHost");
+                if (host == null)
+                {
+                    host = new ContentControl { Name = "OverlayHost" };
+                    Grid.SetRow(host, 3); // overlay above the DataGrid row
+                    RootGrid.Children.Add(host);
+                }
+                host.Content = editor;
             }
-            host.Content = editor;
+            catch (Exception ex)
+            {
+                var root = ex.InnerException ?? ex;
+                MessageBox.Show(
+                    $"Failed to show overlay.\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void CloseOverlay()
         {
-            var host = RootGrid.Children
-                               .OfType<ContentControl>()
-                               .FirstOrDefault(c => c.Name == "OverlayHost");
-            if (host != null) host.Content = null;
+            try
+            {
+                var host = RootGrid.Children
+                                   .OfType<ContentControl>()
+                                   .FirstOrDefault(c => c.Name == "OverlayHost");
+                if (host != null) host.Content = null;
+            }
+            catch (Exception ex)
+            {
+                var root = ex.InnerException ?? ex;
+                MessageBox.Show(
+                    $"Failed to close overlay.\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         // ===== Generate Payroll =====
@@ -118,7 +257,6 @@ namespace HillsCafeManagement.Views.Admin.Payroll
                     (start, end) = _payrollService.GetFirstHalfRange(now.Year, now.Month);
                 }
 
-                // Generate + Save
                 var generated = _payrollService.GenerateForPeriod(start, end);
                 if (generated.Count == 0)
                 {
@@ -135,7 +273,6 @@ namespace HillsCafeManagement.Views.Admin.Payroll
                     return;
                 }
 
-                // Optional: create payslips for this period if you added the method
                 var createdSlips = _payslipService.CreatePayslipsFromPayrollPeriod(start, end);
 
                 MessageBox.Show(
@@ -148,8 +285,10 @@ namespace HillsCafeManagement.Views.Admin.Payroll
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error generating payroll:\n{ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                var root = ex.InnerException ?? ex;
+                MessageBox.Show(
+                    $"Error generating payroll.\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

@@ -5,18 +5,16 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:av="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="av"
-    Background="#2A2B40" av:DesignHeight="600" av:DesignWidth="1000">
+    Background="#2A2B40"
+    av:DesignHeight="600"
+    av:DesignWidth="1000">
 
     <Grid x:Name="RootGrid" Margin="20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <!-- Header -->
-            <RowDefinition Height="Auto"/>
-            <!-- Search + Add -->
-            <RowDefinition Height="Auto"/>
-            <!-- NEW: Period Toolbar -->
-            <RowDefinition Height="*"/>
-            <!-- DataGrid -->
+            <RowDefinition Height="Auto"/>  <!-- Header -->
+            <RowDefinition Height="Auto"/>  <!-- Search + Buttons -->
+            <RowDefinition Height="Auto"/>  <!-- Period Toolbar -->
+            <RowDefinition Height="*"/>     <!-- DataGrid -->
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -26,15 +24,20 @@
                    Foreground="White"
                    Margin="0,0,0,20"/>
 
-        <!-- Search and Add Button -->
+        <!-- Search and Action Buttons -->
         <Grid Grid.Row="1" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <!-- Search Box -->
-            <Border Background="#D9D9D9" CornerRadius="10" Padding="8" Margin="0,0,10,0">
+            <Border Background="#D9D9D9"
+                    CornerRadius="10"
+                    Padding="8"
+                    Margin="0,0,10,0">
                 <Grid>
                     <TextBox x:Name="SearchBox"
                              Background="Transparent"
@@ -47,8 +50,8 @@
             </Border>
 
             <!-- Add Payroll Button -->
-            <Button Content="Add Payroll"
-                    Grid.Column="1"
+            <Button Grid.Column="1"
+                    Content="Add Payroll"
                     Click="AddPayroll_Click"
                     Background="#6378FF"
                     Foreground="White"
@@ -58,8 +61,33 @@
                     BorderThickness="0">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+
+            <!-- Positions & Salaries Button (Payroll Setup) -->
+            <Button Grid.Column="3"
+                    Content="Positions &amp; Salaries"
+                    Click="OpenPositionSalary_Click"
+                    Background="#424BFF"
+                    Foreground="White"
+                    FontWeight="Bold"
+                    Padding="10,5"
+                    Cursor="Hand"
+                    BorderThickness="0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
                 </Button.Template>
@@ -67,31 +95,27 @@
         </Grid>
 
         <!-- ========================= -->
-        <!-- NEW: Period Toolbar       -->
+        <!-- Period Toolbar            -->
         <!-- ========================= -->
         <Grid Grid.Row="2" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <!-- Period label -->
-                <ColumnDefinition Width="180"/>
-                <!-- Period combo -->
+                <ColumnDefinition Width="Auto"/>   <!-- "Period:" -->
+                <ColumnDefinition Width="180"/>    <!-- Period combo -->
                 <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="Auto"/>
-                <!-- From label -->
-                <ColumnDefinition Width="160"/>
-                <!-- Start picker -->
+                <ColumnDefinition Width="Auto"/>   <!-- "From:" -->
+                <ColumnDefinition Width="160"/>    <!-- Start picker -->
                 <ColumnDefinition Width="8"/>
-                <ColumnDefinition Width="Auto"/>
-                <!-- To label -->
-                <ColumnDefinition Width="160"/>
-                <!-- End picker -->
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto"/>
-                <!-- Generate btn -->
+                <ColumnDefinition Width="Auto"/>   <!-- "To:" -->
+                <ColumnDefinition Width="160"/>    <!-- End picker -->
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>   <!-- Generate btn -->
             </Grid.ColumnDefinitions>
 
             <!-- Period Label -->
-            <TextBlock Text="Period:" VerticalAlignment="Center" Foreground="White" Margin="0,0,8,0"/>
+            <TextBlock Text="Period:"
+                       VerticalAlignment="Center"
+                       Foreground="White"
+                       Margin="0,0,8,0"/>
 
             <!-- Period Combo -->
             <ComboBox x:Name="PeriodCombo"
@@ -108,7 +132,11 @@
             </ComboBox>
 
             <!-- From Label (visible only for Custom) -->
-            <TextBlock Grid.Column="3" Text="From:" VerticalAlignment="Center" Foreground="White" Margin="0,0,8,0">
+            <TextBlock Grid.Column="3"
+                       Text="From:"
+                       VerticalAlignment="Center"
+                       Foreground="White"
+                       Margin="0,0,8,0">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -140,7 +168,11 @@
             </DatePicker>
 
             <!-- To Label (visible only for Custom) -->
-            <TextBlock Grid.Column="6" Text="To:" VerticalAlignment="Center" Foreground="White" Margin="0,0,8,0">
+            <TextBlock Grid.Column="6"
+                       Text="To:"
+                       VerticalAlignment="Center"
+                       Foreground="White"
+                       Margin="0,0,8,0">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -184,8 +216,11 @@
                     BorderThickness="0">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
                 </Button.Template>

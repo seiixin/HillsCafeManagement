@@ -5,7 +5,8 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
-    d:DesignWidth="450" d:DesignHeight="600"
+    d:DesignWidth="450"
+    d:DesignHeight="600"
     Background="#99000000">
 
     <Border
@@ -15,8 +16,7 @@
         CornerRadius="10"
         VerticalAlignment="Center"
         HorizontalAlignment="Center"
-        MaxHeight="600"
-        ScrollViewer.VerticalScrollBarVisibility="Auto">
+        MaxHeight="600">
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" Height="560">
             <StackPanel>
@@ -29,6 +29,14 @@
                            Foreground="#6378FF"
                            Margin="0,0,0,15"
                            TextAlignment="Center" />
+
+                <!-- Helper note for auto-fill -->
+                <Border Background="#F1F5FF" CornerRadius="8" Padding="10" Margin="0,0,0,12">
+                    <TextBlock
+                        Text="Tip: Selecting a Position will auto-fill Salary Per Day from Payroll → Positions &amp; Salaries. Enable Manual Override to edit salary."
+                        Foreground="#223"
+                        TextWrapping="Wrap"/>
+                </Border>
 
                 <!-- Full Name -->
                 <TextBlock Text="Full Name:" FontWeight="Bold" />
@@ -66,15 +74,35 @@
                 <TextBox x:Name="ContactNumberTextBox"
                          Margin="0,0,0,10" />
 
-                <!-- Position -->
+                <!-- Position (ComboBox for auto-fill) -->
                 <TextBlock Text="Position:" FontWeight="Bold" />
-                <TextBox x:Name="PositionTextBox"
-                         Margin="0,0,0,10" />
+                <ComboBox x:Name="PositionComboBox"
+                          IsEditable="True"
+                          Margin="0,0,0,6"
+                          StaysOpenOnEdit="True"
+                          IsTextSearchEnabled="True"
+                          SelectionChanged="PositionComboBox_SelectionChanged"/>
+                <!-- Position hint -->
+                <TextBlock Text="(Start typing to search…)"
+                           Foreground="#777"
+                           FontSize="11"
+                           Margin="0,0,0,10"/>
 
-                <!-- Salary Per Day -->
-                <TextBlock Text="Salary Per Day:" FontWeight="Bold" />
+                <!-- Salary Per Day (auto-filled, with manual override) -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,2">
+                    <TextBlock Text="Salary Per Day:" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="ManualOverrideCheckBox"
+                              Content="Manual Override"
+                              Margin="12,0,0,0"
+                              VerticalAlignment="Center"
+                              Checked="ManualOverrideCheckBox_Checked"
+                              Unchecked="ManualOverrideCheckBox_Unchecked"/>
+                </StackPanel>
+
                 <TextBox x:Name="SalaryPerDayTextBox"
-                         Margin="0,0,0,10" />
+                         Margin="0,0,0,10"
+                         IsReadOnly="True"
+                         ToolTip="Auto-filled from position. Enable Manual Override to edit." />
 
                 <!-- Shift -->
                 <TextBlock Text="Shift:" FontWeight="Bold" />

@@ -2,6 +2,7 @@
 using HillsCafeManagement.Services;
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -10,6 +11,8 @@ namespace HillsCafeManagement.Views.Admin.Employees
     public partial class AddEditEmployee : UserControl
     {
         private readonly EmployeeService _employeeService = new();
+        private readonly PositionSalaryService _positionSalaryService = new();
+
         private readonly bool _isEditMode;
         private readonly EmployeeModel? _editingEmployee;
 
@@ -20,6 +23,9 @@ namespace HillsCafeManagement.Views.Admin.Employees
         public AddEditEmployee(EmployeeModel? employee = null)
         {
             InitializeComponent();
+
+            // Populate position suggestions from DB presets
+            PopulatePositions();
 
             if (employee != null)
             {
@@ -35,8 +41,16 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 AddressTextBox.Text = employee.Address ?? string.Empty;
                 BirthdayDatePicker.SelectedDate = employee.Birthday;
                 ContactNumberTextBox.Text = employee.ContactNumber ?? string.Empty;
-                PositionTextBox.Text = employee.Position ?? string.Empty;
-                SalaryPerDayTextBox.Text = employee.SalaryPerDay?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+
+                // Position (combo is editable)
+                PositionComboBox.Text = employee.Position ?? string.Empty;
+
+                // Salary: keep existing; if empty and manual override is off, try auto-fill from preset
+                if (employee.SalaryPerDay.HasValue)
+                    SalaryPerDayTextBox.Text = employee.SalaryPerDay.Value.ToString(CultureInfo.InvariantCulture);
+                else
+                    TryAutoFillSalaryFromPosition();
+
                 ShiftComboBox.SelectedItem = GetComboBoxItemByContent(ShiftComboBox, employee.Shift);
                 SssNumberTextBox.Text = employee.SssNumber ?? string.Empty;
                 PhilhealthNumberTextBox.Text = employee.PhilhealthNumber ?? string.Empty;
@@ -49,66 +63,81 @@ namespace HillsCafeManagement.Views.Admin.Employees
             {
                 _isEditMode = false;
                 TitleText.Text = "Add New Employee";
-
-                // Defaults (optional)
                 SexComboBox.SelectedIndex = 0;
                 ShiftComboBox.SelectedIndex = 0;
             }
+
+            // Salary field starts read-only; toggle via manual override
+            SetSalaryReadOnlyState();
         }
 
-        private ComboBoxItem? GetComboBoxItemByContent(ComboBox comboBox, string? content)
-        {
-            if (string.IsNullOrEmpty(content)) return null;
+        // =======================
+        // UI Event Handlers
+        // =======================
 
-            foreach (var item in comboBox.Items)
-            {
-                if (item is ComboBoxItem cbi && cbi.Content.ToString() == content)
-                    return cbi;
-            }
-            return null;
+        private void PositionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // Auto-fill salary only if manual override is OFF
+            if (ManualOverrideCheckBox.IsChecked == true) return;
+            TryAutoFillSalaryFromPosition();
+        }
+
+        private void ManualOverrideCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            SetSalaryReadOnlyState();
+        }
+
+        private void ManualOverrideCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            SetSalaryReadOnlyState();
+            // When turning override OFF, refresh to preset
+            TryAutoFillSalaryFromPosition();
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
-            var parent = this.Parent as Panel;
-            parent?.Children.Remove(this);
+            if (Parent is Panel parent)
+                parent.Children.Remove(this);
         }
 
         private void Save_Click(object sender, RoutedEventArgs e)
         {
-            // Validate required fields (example: FullName and Position)
-            if (string.IsNullOrWhiteSpace(FullNameTextBox.Text) || string.IsNullOrWhiteSpace(PositionTextBox.Text))
+            // Validate required fields (Full Name and Position)
+            var posText = (PositionComboBox.Text ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(FullNameTextBox.Text) || string.IsNullOrWhiteSpace(posText))
             {
-                MessageBox.Show("Please fill at least Full Name and Position.");
+                MessageBox.Show("Please fill at least Full Name and Position.", "Validation",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             // Parse numeric fields safely
             int? age = null;
-            if (int.TryParse(AgeTextBox.Text.Trim(), out int parsedAge))
+            if (int.TryParse((AgeTextBox.Text ?? string.Empty).Trim(), out var parsedAge))
                 age = parsedAge;
 
             decimal? salaryPerDay = null;
-            if (decimal.TryParse(SalaryPerDayTextBox.Text.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsedSalary))
+            if (decimal.TryParse((SalaryPerDayTextBox.Text ?? string.Empty).Trim(),
+                                 NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSalary))
                 salaryPerDay = parsedSalary;
 
             // Prepare employee object
             var employee = new EmployeeModel
             {
-                FullName = FullNameTextBox.Text.Trim(),
+                FullName = (FullNameTextBox.Text ?? string.Empty).Trim(),
                 Age = age,
-                Sex = (SexComboBox.SelectedItem as ComboBoxItem)?.Content.ToString(),
-                Address = AddressTextBox.Text.Trim(),
+                Sex = (SexComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString(),
+                Address = (AddressTextBox.Text ?? string.Empty).Trim(),
                 Birthday = BirthdayDatePicker.SelectedDate,
-                ContactNumber = ContactNumberTextBox.Text.Trim(),
-                Position = PositionTextBox.Text.Trim(),
+                ContactNumber = (ContactNumberTextBox.Text ?? string.Empty).Trim(),
+                Position = posText,
                 SalaryPerDay = salaryPerDay,
-                Shift = (ShiftComboBox.SelectedItem as ComboBoxItem)?.Content.ToString(),
-                SssNumber = SssNumberTextBox.Text.Trim(),
-                PhilhealthNumber = PhilhealthNumberTextBox.Text.Trim(),
-                PagibigNumber = PagibigNumberTextBox.Text.Trim(),
-                ImageUrl = ImageUrlTextBox.Text.Trim(),
-                EmergencyContact = EmergencyContactTextBox.Text.Trim(),
+                Shift = (ShiftComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString(),
+                SssNumber = (SssNumberTextBox.Text ?? string.Empty).Trim(),
+                PhilhealthNumber = (PhilhealthNumberTextBox.Text ?? string.Empty).Trim(),
+                PagibigNumber = (PagibigNumberTextBox.Text ?? string.Empty).Trim(),
+                ImageUrl = (ImageUrlTextBox.Text ?? string.Empty).Trim(),
+                EmergencyContact = (EmergencyContactTextBox.Text ?? string.Empty).Trim(),
                 DateHired = DateHiredDatePicker.SelectedDate
             };
 
@@ -117,36 +146,95 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 employee.Id = _editingEmployee.Id;
                 employee.CreatedAt = _editingEmployee.CreatedAt;
 
-                bool success = _employeeService.UpdateEmployee(employee);
-
+                var success = _employeeService.UpdateEmployee(employee);
                 if (success)
                 {
-                    MessageBox.Show("Employee updated successfully.");
+                    MessageBox.Show("Employee updated successfully.", "Success",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
                     OnEmployeeSaved?.Invoke();
                     Cancel_Click(sender, e);
                 }
                 else
                 {
-                    MessageBox.Show("Failed to update employee.");
+                    MessageBox.Show("Failed to update employee.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             else
             {
                 employee.CreatedAt = DateTime.Now;
-
-                bool success = _employeeService.AddEmployee(employee);
-
+                var success = _employeeService.AddEmployee(employee);
                 if (success)
                 {
-                    MessageBox.Show("Employee added successfully.");
+                    MessageBox.Show("Employee added successfully.", "Success",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
                     OnEmployeeSaved?.Invoke();
                     Cancel_Click(sender, e);
                 }
                 else
                 {
-                    MessageBox.Show("Failed to add employee.");
+                    MessageBox.Show("Failed to add employee.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
+        }
+
+        // =======================
+        // Helpers
+        // =======================
+
+        private void PopulatePositions()
+        {
+            try
+            {
+                var list = _positionSalaryService.Load()
+                                                 .Where(p => p.IsActive)
+                                                 .OrderBy(p => p.Position, StringComparer.OrdinalIgnoreCase)
+                                                 .Select(p => p.Position)
+                                                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                                                 .ToList();
+
+                PositionComboBox.ItemsSource = list;
+            }
+            catch (Exception ex)
+            {
+                // Non-fatal; just show a hint
+                Console.Error.WriteLine("Failed to load position presets: " + ex.Message);
+            }
+        }
+
+        private void TryAutoFillSalaryFromPosition()
+        {
+            var pos = (PositionComboBox.Text ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(pos)) return;
+            if (ManualOverrideCheckBox.IsChecked == true) return;
+
+            if (_positionSalaryService.TryGetRate(pos, out var rate))
+            {
+                SalaryPerDayTextBox.Text = rate.ToString("0.00", CultureInfo.InvariantCulture);
+            }
+            // else: leave as is if no preset found
+        }
+
+        private void SetSalaryReadOnlyState()
+        {
+            var manual = ManualOverrideCheckBox.IsChecked == true;
+            SalaryPerDayTextBox.IsReadOnly = !manual;
+            SalaryPerDayTextBox.ToolTip = manual
+                ? "Manual override enabled. You can edit this value."
+                : "Auto-filled from position. Enable Manual Override to edit.";
+        }
+
+        private ComboBoxItem? GetComboBoxItemByContent(ComboBox comboBox, string? content)
+        {
+            if (string.IsNullOrEmpty(content)) return null;
+
+            foreach (var item in comboBox.Items)
+            {
+                if (item is ComboBoxItem cbi && string.Equals(cbi.Content?.ToString(), content, StringComparison.Ordinal))
+                    return cbi;
+            }
+            return null;
         }
     }
 }

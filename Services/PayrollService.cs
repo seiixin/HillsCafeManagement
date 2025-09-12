@@ -19,12 +19,6 @@ namespace HillsCafeManagement.Services
             => (new DateTime(year, month, 16, 0, 0, 0),
                 new DateTime(year, month, DateTime.DaysInMonth(year, month), 23, 59, 59));
 
-        // ---------- Generate for period (matches your current schema) ----------
-        // Assumptions:
-        //  - employees: has at least (id, full_name). No branch/shift/rates required.
-        //  - attendance: (id, employee_id, date, time_in, time_out, status ['Present',...])
-        //  - No leave_requests table (paid/unpaid leave = 0 for now)
-        //  - If employee has no configured rate, we fallback to last payroll’s per-day rate (if any); otherwise 0.
         public List<PayrollModel> GenerateForPeriod(DateTime periodStart, DateTime periodEnd)
         {
             var results = new List<PayrollModel>();
