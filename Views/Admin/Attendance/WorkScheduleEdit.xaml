@@ -1,0 +1,168 @@
+﻿<UserControl x:Class="HillsCafeManagement.Views.Admin.Attendance.WorkScheduleEdit"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignWidth="520" d:DesignHeight="640"
+             Background="#99000000"
+             Focusable="True">
+
+    <!-- Centered card container -->
+    <Border Width="520"
+            Background="White"
+            Padding="20"
+            CornerRadius="10"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Center">
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="580">
+            <StackPanel>
+
+                <!-- Title -->
+                <TextBlock Text="Work Days Schedule Setup"
+                           FontSize="20"
+                           FontWeight="Bold"
+                           Foreground="#6378FF"
+                           Margin="0,0,0,14"
+                           TextAlignment="Center"/>
+
+                <!-- Toolbar -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
+                    <Button Content="Reload"
+                            Command="{Binding ReloadCommand}"
+                            Margin="0,0,8,0"
+                            Padding="8,4"/>
+                    <Button Content="Add Row"
+                            Command="{Binding AddCommand}"
+                            Margin="0,0,8,0"
+                            Padding="8,4"/>
+                    <Button Content="Save"
+                            Command="{Binding SaveCommand}"
+                            Background="#57B894"
+                            Foreground="White"
+                            Padding="8,4"/>
+                </StackPanel>
+
+                <!-- Tip -->
+                <TextBlock Text="Tip: Label can be 'MWF', 'TTh', or any name. Double-click the Days cell (or click 📝) to edit Mon–Sun."
+                           Foreground="#666"
+                           Margin="0,0,0,8"/>
+
+                <!-- DataGrid -->
+                <DataGrid x:Name="SchedulesGrid"
+                          ItemsSource="{Binding Schedules}"
+                          SelectedItem="{Binding Selected, Mode=TwoWay}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          RowHeight="34"
+                          ColumnHeaderHeight="34"
+                          Margin="0,0,0,10"
+                          IsReadOnly="False">
+
+                    <DataGrid.Resources>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="#6378FF"/>
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                        </Style>
+                    </DataGrid.Resources>
+
+                    <DataGrid.Columns>
+
+                        <!-- Label (editable) -->
+                        <DataGridTextColumn Header="Label"
+                                            Width="*"
+                                            Binding="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <!-- Days (pretty text when not editing; 7 checkboxes when editing) -->
+                        <DataGridTemplateColumn Header="Days" Width="220">
+                            <!-- display -->
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DaysText}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+
+                            <!-- edit -->
+                            <DataGridTemplateColumn.CellEditingTemplate>
+                                <DataTemplate>
+                                    <WrapPanel>
+                                        <CheckBox Content="Mon" IsChecked="{Binding Mon, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="2,0"/>
+                                        <CheckBox Content="Tue" IsChecked="{Binding Tue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="2,0"/>
+                                        <CheckBox Content="Wed" IsChecked="{Binding Wed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="2,0"/>
+                                        <CheckBox Content="Thu" IsChecked="{Binding Thu, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="2,0"/>
+                                        <CheckBox Content="Fri" IsChecked="{Binding Fri, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="2,0"/>
+                                        <CheckBox Content="Sat" IsChecked="{Binding Sat, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="2,0"/>
+                                        <CheckBox Content="Sun" IsChecked="{Binding Sun, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="2,0"/>
+                                    </WrapPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellEditingTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Active -->
+                        <DataGridCheckBoxColumn Header="Active"
+                                                Width="90"
+                                                Binding="{Binding IsActive, Mode=TwoWay}"/>
+
+                        <!-- Updated -->
+                        <DataGridTextColumn Header="Updated"
+                                            Width="170"
+                                            IsReadOnly="True"
+                                            Binding="{Binding UpdatedAt, StringFormat=\{0:yyyy-MM-dd HH:mm\}}"/>
+
+                        <!-- Actions -->
+                        <DataGridTemplateColumn Header="Actions" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <!-- Edit: begin editing this row -->
+                                        <Button Content="📝"
+                                                ToolTip="Edit"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                FontSize="16"
+                                                Click="EditRow_Click"
+                                                Margin="0,0,6,0"/>
+
+                                        <!-- Delete: remove from grid; persists after Save -->
+                                        <Button Content="🗑"
+                                                ToolTip="Delete"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                FontSize="16"
+                                                Click="DeleteRow_Click"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Footer -->
+                <DockPanel>
+                    <TextBlock Text="{Binding Status}" Foreground="#444" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                        <TextBlock Text="Busy: " Foreground="#666" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <CheckBox IsChecked="{Binding IsBusy, Mode=OneWay}"
+                                  IsEnabled="False"
+                                  Focusable="False"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,12,0"/>
+                        <Button Content="Close"
+                                Command="{Binding CloseCommand}"
+                                Background="#6378FF"
+                                Foreground="White"
+                                Padding="8,4"/>
+                    </StackPanel>
+                </DockPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</UserControl>

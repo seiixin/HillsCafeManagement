@@ -17,7 +17,6 @@ namespace HillsCafeManagement.Helpers
         }
 
         public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
-
         public void Execute(object? parameter) => _execute(parameter);
 
         public event EventHandler? CanExecuteChanged
@@ -26,7 +25,6 @@ namespace HillsCafeManagement.Helpers
             remove => CommandManager.RequerySuggested -= value;
         }
 
-        /// <summary>Force WPF to requery CanExecute (use when state changes).</summary>
         public void RaiseCanExecuteChanged() => CommandManager.InvalidateRequerySuggested();
     }
 
@@ -60,31 +58,25 @@ namespace HillsCafeManagement.Helpers
             remove => CommandManager.RequerySuggested -= value;
         }
 
-        /// <summary>Force WPF to requery CanExecute (use when state changes).</summary>
         public void RaiseCanExecuteChanged() => CommandManager.InvalidateRequerySuggested();
 
         private static (bool ok, T? value) TryCast(object? parameter)
         {
-            // Accept exact T
             if (parameter is T t) return (true, t);
 
-            // Accept null for reference/nullable types
             if (parameter is null)
             {
-                var isValueType = typeof(T).IsValueType && Nullable.GetUnderlyingType(typeof(T)) is null;
-                return isValueType ? (false, default) : (true, default);
+                var isNonNullableValueType =
+                    typeof(T).IsValueType && Nullable.GetUnderlyingType(typeof(T)) is null;
+                return isNonNullableValueType ? (false, default) : (true, default);
             }
 
-            // Try Convert.ChangeType for common value-type scenarios (e.g., boxing from XAML)
             try
             {
-                var targetType = typeof(T);
-                var underlying = Nullable.GetUnderlyingType(targetType) ?? targetType;
-
-                if (parameter is IConvertible && typeof(IConvertible).IsAssignableFrom(underlying))
+                var target = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+                if (parameter is IConvertible && typeof(IConvertible).IsAssignableFrom(target))
                 {
-                    var converted = (T?)Convert.ChangeType(parameter, underlying);
-                    return (true, converted);
+                    return (true, (T?)Convert.ChangeType(parameter, target));
                 }
             }
             catch { /* ignore */ }
