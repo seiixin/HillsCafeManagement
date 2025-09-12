@@ -39,7 +39,6 @@ namespace HillsCafeManagement.Views.Employee.Profile
         private void OnEditSaveClicked(object sender, RoutedEventArgs e)
         {
             _isEditing = !_isEditing;
-            btnEditSave.Content = _isEditing ? "Save" : "Edit";
             ToggleReadonly(!_isEditing);
 
             // When switching back to read-only, trigger save
