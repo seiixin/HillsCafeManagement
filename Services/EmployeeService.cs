@@ -172,8 +172,7 @@ namespace HillsCafeManagement.Services
                 var newIdObj = cmd.ExecuteScalar();
                 tx.Commit();
 
-                var newId = Convert.ToInt32(newIdObj);
-                employee.Id = newId;
+                employee.Id = Convert.ToInt32(newIdObj);
                 return true;
             }
             catch (Exception ex)

@@ -13,12 +13,12 @@ namespace HillsCafeManagement.Views.Admin.Employees
     {
         private readonly EmployeeService _employeeService = new();
         private readonly PositionSalaryService _positionSalaryService = new();
-        private readonly WorkScheduleService _workScheduleService = new();   // NEW
+        private readonly WorkScheduleService _workScheduleService = new();   // Work schedule source
 
         private readonly bool _isEditMode;
         private readonly EmployeeModel? _editingEmployee;
 
-        // Event to notify parent when saved
+        // Notify parent when saved
         public delegate void EmployeeSavedHandler();
         public event EmployeeSavedHandler? OnEmployeeSaved;
 
@@ -28,7 +28,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
 
             // Populate dropdowns
             PopulatePositions();
-            PopulateWorkSchedules(); // NEW
+            PopulateWorkSchedules();
 
             if (employee != null)
             {
@@ -54,9 +54,12 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 else
                     TryAutoFillSalaryFromPosition();
 
+                // Shift: try to select the existing one; if nothing matches, pick a safe default
                 ShiftComboBox.SelectedItem = GetComboBoxItemByContent(ShiftComboBox, employee.Shift);
+                if (ShiftComboBox.SelectedItem == null)
+                    ShiftComboBox.SelectedIndex = 0; // default "Morning"
 
-                // NEW: select current Work Schedule (if any)
+                // Work Schedule (if any)
                 if (employee.WorkScheduleId.HasValue)
                     WorkScheduleComboBox.SelectedValue = employee.WorkScheduleId.Value;
 
@@ -72,7 +75,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 _isEditMode = false;
                 TitleText.Text = "Add New Employee";
                 SexComboBox.SelectedIndex = 0;
-                ShiftComboBox.SelectedIndex = 0;
+                ShiftComboBox.SelectedIndex = 0; // default "Morning"
             }
 
             // Salary field starts read-only; toggle via manual override
@@ -90,11 +93,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
             TryAutoFillSalaryFromPosition();
         }
 
-        private void ManualOverrideCheckBox_Checked(object sender, RoutedEventArgs e)
-        {
-            SetSalaryReadOnlyState();
-        }
-
+        private void ManualOverrideCheckBox_Checked(object sender, RoutedEventArgs e) => SetSalaryReadOnlyState();
         private void ManualOverrideCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
             SetSalaryReadOnlyState();
@@ -129,10 +128,16 @@ namespace HillsCafeManagement.Views.Admin.Employees
                                  NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSalary))
                 salaryPerDay = parsedSalary;
 
-            // NEW: get selected WorkScheduleId (SelectedValuePath="Id")
-            int? workScheduleId = null;
-            if (WorkScheduleComboBox.SelectedValue is int id)
-                workScheduleId = id;
+            // WorkScheduleId (SelectedValuePath="Id")
+            int? workScheduleId = (WorkScheduleComboBox.SelectedValue is int id) ? id : (int?)null;
+
+            // Shift: read from SelectedItem if possible; else from Text; if still blank, default to "Morning"
+            string? shiftText =
+                (ShiftComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString()
+                ?? (ShiftComboBox.Text ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(shiftText))
+                shiftText = "Morning";
 
             // Prepare employee object
             var employee = new EmployeeModel
@@ -145,8 +150,8 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 ContactNumber = (ContactNumberTextBox.Text ?? string.Empty).Trim(),
                 Position = posText,
                 SalaryPerDay = salaryPerDay,
-                Shift = (ShiftComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString(),
-                WorkScheduleId = workScheduleId, // NEW
+                Shift = shiftText,                           // guaranteed non-empty
+                WorkScheduleId = workScheduleId,            // may be null if not chosen
                 SssNumber = (SssNumberTextBox.Text ?? string.Empty).Trim(),
                 PhilhealthNumber = (PhilhealthNumberTextBox.Text ?? string.Empty).Trim(),
                 PagibigNumber = (PagibigNumberTextBox.Text ?? string.Empty).Trim(),
@@ -217,7 +222,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
             }
         }
 
-        // NEW: load work schedules into the combo
+        // Load work schedules into the combo
         private void PopulateWorkSchedules()
         {
             try
@@ -230,6 +235,9 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 WorkScheduleComboBox.DisplayMemberPath = "Label";
                 WorkScheduleComboBox.SelectedValuePath = "Id";
                 WorkScheduleComboBox.ItemsSource = list;
+
+                // If there's exactly one active schedule, you can auto-select it (optional):
+                // if (list.Count == 1) WorkScheduleComboBox.SelectedIndex = 0;
             }
             catch (Exception ex)
             {

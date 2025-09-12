@@ -19,7 +19,7 @@ namespace HillsCafeManagement.ViewModels
         private readonly ILeaveRequestService _leaveService = new LeaveRequestService();
         private readonly IEmployeeService _employeeService = new EmployeeService();
 
-        // ===== Resolved identity =====
+        // ===== Resolved identity (EMPLOYEE id, not user id) =====
         private int? _currentEmployeeId;
         public int? CurrentEmployeeId
         {
@@ -128,15 +128,13 @@ namespace HillsCafeManagement.ViewModels
             set { if (_leaveFilterTo != value) { _leaveFilterTo = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
         }
 
-        // null = All
-        private LeaveStatus? _leaveFilterStatus = null;
+        private LeaveStatus? _leaveFilterStatus = null; // null = All
         public LeaveStatus? LeaveFilterStatus
         {
             get => _leaveFilterStatus;
             set { if (_leaveFilterStatus != value) { _leaveFilterStatus = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
         }
 
-        // Selected row
         private LeaveRequestModel? _selectedLeave;
         public LeaveRequestModel? SelectedLeave
         {
@@ -144,7 +142,6 @@ namespace HillsCafeManagement.ViewModels
             set { _selectedLeave = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
-        // Leave form (create/update)
         private int _leaveFormId; // 0 => new
         public int LeaveFormId
         {
@@ -210,7 +207,7 @@ namespace HillsCafeManagement.ViewModels
             KickOffInitialLoads();
         }
 
-        // NEW: accept employeeId directly (used by Sidebar)
+        // Overload: allow passing employeeId directly
         public AttendanceEmployeeViewModel(int employeeId)
         {
             CurrentEmployeeId = employeeId > 0 ? employeeId : null;
@@ -230,22 +227,22 @@ namespace HillsCafeManagement.ViewModels
 
         private void SetupCommands()
         {
-            // Attendance
-            ClockInCommand = new RelayCommand(async _ => await ClockInAsync(), _ => CanExecuteAttendanceAction() && !IsBusyAttendance);
-            ClockOutCommand = new RelayCommand(async _ => await ClockOutAsync(), _ => CanExecuteAttendanceAction() && !IsBusyAttendance);
-            RefreshListCommand = new RelayCommand(async _ => await RefreshAttendanceAsync(), _ => !IsBusyAttendance);
-            ApplyFilterCommand = new RelayCommand(async _ => await RefreshAttendanceAsync(), _ => !IsBusyAttendance && CanApplyAttendanceFilter());
+            // Attendance (guard on CurrentEmployeeId)
+            ClockInCommand = new RelayCommand(async _ => await ClockInAsync(), _ => !IsBusyAttendance && CurrentEmployeeId.HasValue && CanExecuteAttendanceAction());
+            ClockOutCommand = new RelayCommand(async _ => await ClockOutAsync(), _ => !IsBusyAttendance && CurrentEmployeeId.HasValue && CanExecuteAttendanceAction());
+            RefreshListCommand = new RelayCommand(async _ => await RefreshAttendanceAsync(), _ => !IsBusyAttendance && CurrentEmployeeId.HasValue);
+            ApplyFilterCommand = new RelayCommand(async _ => await RefreshAttendanceAsync(), _ => !IsBusyAttendance && CurrentEmployeeId.HasValue && CanApplyAttendanceFilter());
             ResetFilterCommand = new RelayCommand(_ => ResetAttendanceFilter(), _ => !IsBusyAttendance);
 
             // Leave
-            LoadLeaveListCommand = new RelayCommand(async _ => await RefreshLeaveListAsync(), _ => !IsBusyLeave);
-            ApplyLeaveFilterCommand = new RelayCommand(async _ => await RefreshLeaveListAsync(), _ => !IsBusyLeave && CanApplyLeaveFilter());
+            LoadLeaveListCommand = new RelayCommand(async _ => await RefreshLeaveListAsync(), _ => !IsBusyLeave && CurrentEmployeeId.HasValue);
+            ApplyLeaveFilterCommand = new RelayCommand(async _ => await RefreshLeaveListAsync(), _ => !IsBusyLeave && CurrentEmployeeId.HasValue && CanApplyLeaveFilter());
             ResetLeaveFilterCommand = new RelayCommand(_ => ResetLeaveFilter(), _ => !IsBusyLeave);
 
-            NewLeaveFormCommand = new RelayCommand(_ => ResetLeaveForm(), _ => !IsBusyLeave);
-            SubmitLeaveRequestCommand = new RelayCommand(async _ => await SubmitLeaveAsync(), _ => !IsBusyLeave && CanSubmitLeave());
-            UpdateLeaveRequestCommand = new RelayCommand(async _ => await UpdateLeaveAsync(), _ => !IsBusyLeave && CanUpdateLeave());
-            CancelLeaveRequestCommand = new RelayCommand(async _ => await CancelLeaveAsync(), _ => !IsBusyLeave && CanCancelLeave());
+            NewLeaveFormCommand = new RelayCommand(_ => ResetLeaveForm(), _ => !IsBusyLeave && CurrentEmployeeId.HasValue);
+            SubmitLeaveRequestCommand = new RelayCommand(async _ => await SubmitLeaveAsync(), _ => !IsBusyLeave && CurrentEmployeeId.HasValue && CanSubmitLeave());
+            UpdateLeaveRequestCommand = new RelayCommand(async _ => await UpdateLeaveAsync(), _ => !IsBusyLeave && CurrentEmployeeId.HasValue && CanUpdateLeave());
+            CancelLeaveRequestCommand = new RelayCommand(async _ => await CancelLeaveAsync(), _ => !IsBusyLeave && CurrentEmployeeId.HasValue && CanCancelLeave());
             EditSelectedLeaveCommand = new RelayCommand(_ => LoadSelectedIntoForm(), _ => SelectedLeave != null && !IsBusyLeave);
         }
 
@@ -282,15 +279,17 @@ namespace HillsCafeManagement.ViewModels
 
         private async Task ClockInAsync()
         {
+            if (CurrentEmployeeId is null) { LastMessage = "❌ No linked employee profile."; return; }
+
             try
             {
                 IsBusyAttendance = true;
+                var empId = CurrentEmployeeId.Value;
 
-                // NOTE: Your AttendanceService currently uses userId; keep it as-is for now.
                 if (IsManualMode && TryGetManualDateTime(out var ts))
-                    _attendanceService.ClockIn(Session.CurrentUserId, ts);
+                    _attendanceService.ClockIn(empId, ts);   // <-- EMPLOYEE ID
                 else
-                    _attendanceService.ClockIn(Session.CurrentUserId);
+                    _attendanceService.ClockIn(empId);        // <-- EMPLOYEE ID
 
                 LastMessage = $"✅ Clock In successful! ({DateTime.Now:hh:mm:ss tt})";
                 await RefreshAttendanceAsync();
@@ -304,14 +303,17 @@ namespace HillsCafeManagement.ViewModels
 
         private async Task ClockOutAsync()
         {
+            if (CurrentEmployeeId is null) { LastMessage = "❌ No linked employee profile."; return; }
+
             try
             {
                 IsBusyAttendance = true;
+                var empId = CurrentEmployeeId.Value;
 
                 if (IsManualMode && TryGetManualDateTime(out var ts))
-                    _attendanceService.ClockOut(Session.CurrentUserId, ts);
+                    _attendanceService.ClockOut(empId, ts);   // <-- EMPLOYEE ID
                 else
-                    _attendanceService.ClockOut(Session.CurrentUserId);
+                    _attendanceService.ClockOut(empId);        // <-- EMPLOYEE ID
 
                 LastMessage = $"✅ Clock Out successful! ({DateTime.Now:hh:mm:ss tt})";
                 await RefreshAttendanceAsync();
@@ -343,9 +345,16 @@ namespace HillsCafeManagement.ViewModels
             {
                 IsBusyAttendance = true;
 
-                // If your attendance table uses employee_id, switch to CurrentEmployeeId!.Value here.
+                if (CurrentEmployeeId is null)
+                {
+                    Attendances.Clear();
+                    LastMessage = "⚠️ No linked employee profile.";
+                    return;
+                }
+
+                var empId = CurrentEmployeeId.Value;
                 var items = await Task.Run(() =>
-                    _attendanceService.GetAttendancesForEmployee(Session.CurrentUserId, FilterFromDate, FilterToDate));
+                    _attendanceService.GetAttendancesForEmployee(empId, FilterFromDate, FilterToDate));
 
                 Attendances.Clear();
                 foreach (var it in items) Attendances.Add(it);
@@ -360,7 +369,7 @@ namespace HillsCafeManagement.ViewModels
         }
 
         // =========================================================================================
-        // LEAVE LOGIC
+        // LEAVE LOGIC (unchanged except for guarding with CurrentEmployeeId)
         // =========================================================================================
         private bool CanApplyLeaveFilter()
         {
@@ -429,7 +438,7 @@ namespace HillsCafeManagement.ViewModels
             if (LeaveFormId != 0) return false; // new only
             if (LeaveDateFrom.Date > LeaveDateTo.Date) return false;
             if (LeaveHalfDay && LeaveDateFrom.Date != LeaveDateTo.Date) return false;
-            return CurrentEmployeeId.HasValue; // must have employee link
+            return CurrentEmployeeId.HasValue;
         }
 
         private async Task SubmitLeaveAsync()
@@ -440,7 +449,6 @@ namespace HillsCafeManagement.ViewModels
 
                 if (CurrentEmployeeId is null) { LastMessage = "❌ No linked employee profile."; return; }
 
-                // basic overlap guard against pending/approved
                 var overlaps = await Task.Run(() =>
                     _leaveService.GetForEmployee(CurrentEmployeeId.Value, LeaveDateFrom, LeaveDateTo, null)
                                  .Any(x => x.Status == LeaveStatus.Approved || x.Status == LeaveStatus.Pending));
@@ -448,7 +456,7 @@ namespace HillsCafeManagement.ViewModels
 
                 var model = new LeaveRequestModel
                 {
-                    EmployeeId = CurrentEmployeeId.Value, // <-- EMPLOYEE id (not user id)
+                    EmployeeId = CurrentEmployeeId.Value,
                     LeaveType = LeaveType,
                     Reason = string.IsNullOrWhiteSpace(LeaveReason) ? null : LeaveReason.Trim(),
                     DateFrom = LeaveDateFrom.Date,
