@@ -5,66 +5,54 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
+    x:Name="Root"
     d:DesignWidth="520" d:DesignHeight="640"
     Background="#99000000"
     Focusable="True">
 
-    <!-- Centered card (same vibe as AddEditPayroll) -->
-    <Border
-        Width="520"
-        Background="White"
-        Padding="20"
-        CornerRadius="10"
-        VerticalAlignment="Center"
-        HorizontalAlignment="Center">
+    <!-- ✅ InputBindings must be directly under the root element -->
+    <UserControl.InputBindings>
+        <KeyBinding Modifiers="Control" Key="S"
+                    Command="{Binding DataContext.SaveCommand, ElementName=Root}"/>
+        <KeyBinding Key="F5"
+                    Command="{Binding DataContext.ReloadCommand, ElementName=Root}"/>
+        <KeyBinding Key="Escape"
+                    Command="{Binding DataContext.CloseCommand, ElementName=Root}"/>
+    </UserControl.InputBindings>
 
-        <!-- Scrollable content -->
+    <Border Width="520" Background="White" Padding="20" CornerRadius="10"
+            VerticalAlignment="Center" HorizontalAlignment="Center">
         <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="580">
             <StackPanel>
 
-                <!-- Title -->
                 <TextBlock Text="Positions &amp; Salaries"
-                           FontSize="20"
-                           FontWeight="Bold"
-                           Foreground="#6378FF"
-                           Margin="0,0,0,14"
-                           TextAlignment="Center"/>
+                           FontSize="20" FontWeight="Bold" Foreground="#6378FF"
+                           Margin="0,0,0,14" TextAlignment="Center"/>
 
-                <!-- Toolbar -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
-                    <Button Content="Reload"
-                            Command="{Binding ReloadCommand}"
-                            Margin="0,0,8,0"
-                            Padding="8,4"/>
-                    <Button Content="Add Row"
-                            Command="{Binding AddCommand}"
-                            Margin="0,0,8,0"
-                            Padding="8,4"/>
-                    <Button Content="Save"
-                            Command="{Binding SaveCommand}"
-                            Background="#57B894"
-                            Foreground="White"
-                            Padding="8,4"/>
+                    <Button Content="Reload" Command="{Binding ReloadCommand}" Margin="0,0,8,0" Padding="8,4"/>
+                    <Button Content="Add Row" Command="{Binding AddCommand}" Margin="0,0,8,0" Padding="8,4"/>
+                    <Button Content="Save" Command="{Binding SaveCommand}" Background="#57B894" Foreground="White" Padding="8,4"/>
                 </StackPanel>
 
-                <!-- Quick instructions -->
                 <TextBlock Text="Tip: Type a Position and Daily Rate below. Use Save to persist to DB."
-                           Foreground="#666"
-                           Margin="0,0,0,8"/>
+                           Foreground="#666" Margin="0,0,0,8"/>
 
-                <!-- Editable grid of presets (compact) -->
-                <DataGrid
-                    ItemsSource="{Binding Rates}"
-                    SelectedItem="{Binding Selected, Mode=TwoWay}"
-                    AutoGenerateColumns="False"
-                    CanUserAddRows="False"
-                    CanUserDeleteRows="True"
-                    HeadersVisibility="Column"
-                    GridLinesVisibility="None"
-                    RowHeight="34"
-                    ColumnHeaderHeight="34"
-                    Margin="0,0,0,10"
-                    IsReadOnly="False">
+                <DataGrid x:Name="RatesGrid"
+                          ItemsSource="{Binding Rates}"
+                          SelectedItem="{Binding Selected, Mode=TwoWay}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          RowHeight="34"
+                          ColumnHeaderHeight="34"
+                          Margin="0,0,0,10"
+                          IsReadOnly="False"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.ScrollUnit="Pixel"
+                          KeyboardNavigation.TabNavigation="Cycle">
 
                     <DataGrid.Resources>
                         <Style TargetType="DataGridColumnHeader">
@@ -72,6 +60,13 @@
                             <Setter Property="Foreground" Value="White"/>
                             <Setter Property="FontWeight" Value="Bold"/>
                             <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                        </Style>
+
+                        <!-- ✅ EventSetter is allowed; Setter for events is NOT -->
+                        <Style x:Key="NumericTextBox" TargetType="TextBox">
+                            <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                            <Setter Property="Padding" Value="2"/>
+                            <EventSetter Event="PreviewTextInput" Handler="NumericOnly_PreviewTextInput"/>
                         </Style>
                     </DataGrid.Resources>
 
@@ -82,7 +77,11 @@
 
                         <DataGridTextColumn Header="Daily Rate"
                                             Width="150"
-                                            Binding="{Binding DailyRate, Mode=TwoWay, StringFormat=\{0:F2\}, UpdateSourceTrigger=PropertyChanged}"/>
+                                            Binding="{Binding DailyRate, Mode=TwoWay, StringFormat=\{0:F2\}, UpdateSourceTrigger=PropertyChanged}">
+                            <DataGridTextColumn.EditingElementStyle>
+                                <Style TargetType="TextBox" BasedOn="{StaticResource NumericTextBox}"/>
+                            </DataGridTextColumn.EditingElementStyle>
+                        </DataGridTextColumn>
 
                         <DataGridCheckBoxColumn Header="Active"
                                                 Width="90"
@@ -92,17 +91,35 @@
                                             Width="170"
                                             IsReadOnly="True"
                                             Binding="{Binding UpdatedAt, StringFormat=\{0:yyyy-MM-dd HH:mm\}}"/>
+
+                        <DataGridTemplateColumn Header="Actions" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <Button Content="📝"
+                                                ToolTip="Edit"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                FontSize="16"
+                                                Click="EditRow_Click"
+                                                Margin="0,0,6,0"/>
+                                        <Button Content="🗑"
+                                                ToolTip="Delete"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                FontSize="16"
+                                                Click="DeleteRow_Click"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <!-- Footer status + Close -->
                 <DockPanel>
-                    <TextBlock Text="{Binding Status}"
-                               Foreground="#444"
-                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Status}" Foreground="#444" VerticalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                         <TextBlock Text="Busy: " Foreground="#666" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                        <!-- FIX: make binding OneWay to avoid writing back to read-only IsBusy -->
                         <CheckBox IsChecked="{Binding IsBusy, Mode=OneWay}"
                                   IsEnabled="False"
                                   Focusable="False"

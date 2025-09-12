@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -8,6 +9,9 @@ using HillsCafeManagement.ViewModels;
 
 namespace HillsCafeManagement.Views.Admin.Payroll
 {
+    /// <summary>
+    /// Interaction logic for PositionSalaryEdit.xaml
+    /// </summary>
     public partial class PositionSalaryEdit : UserControl
     {
         public event Action? CloseRequested;
@@ -15,22 +19,18 @@ namespace HillsCafeManagement.Views.Admin.Payroll
         /// <summary>Strongly-typed access to the view model.</summary>
         public PositionSalaryViewModel VM { get; }
 
-        /// <summary>
-        /// True if InitializeComponent failed (e.g., XAML parse/binding issue). Host may skip showing this control.
-        /// </summary>
+        /// <summary>True if InitializeComponent failed (XAML parse/binding issue). Host may skip showing this control.</summary>
         public bool InitFailed { get; private set; }
 
-        // Default ctor: safe, does not touch DB during construction.
+        // Default ctor (safe: no DB work here)
         public PositionSalaryEdit() : this(service: null) { }
 
-        /// <summary>
-        /// DI-friendly ctor: supply a custom service (e.g., test DB, different connection string).
-        /// </summary>
+        /// <summary>DI-friendly ctor.</summary>
         public PositionSalaryEdit(PositionSalaryService? service)
         {
             try
             {
-                InitializeComponent(); // If XAML has issues, we catch below instead of crashing the app.
+                InitializeComponent(); // if XAML has issues, catch below
             }
             catch (XamlParseException xpe)
             {
@@ -60,9 +60,7 @@ namespace HillsCafeManagement.Views.Admin.Payroll
             Unloaded += OnUnloaded;
         }
 
-        /// <summary>
-        /// Overload if you want to construct the VM elsewhere and pass it in.
-        /// </summary>
+        /// <summary>Overload if you want to supply an existing VM.</summary>
         public PositionSalaryEdit(PositionSalaryViewModel viewModel)
         {
             try
@@ -101,12 +99,21 @@ namespace HillsCafeManagement.Views.Admin.Payroll
 
         private void OnLoaded(object? sender, RoutedEventArgs e)
         {
-            if (InitFailed) return; // Don't proceed if XAML failed to load.
+            if (InitFailed) return;
 
             try
             {
-                Keyboard.Focus(this);
-                // Load AFTER the view is ready so DB/UI errors show as dialogs, not crashes.
+                // Prefer focusing the grid if present; otherwise the control itself.
+                if (FindName("RatesGrid") is DataGrid grid)
+                {
+                    Keyboard.Focus(grid);
+                }
+                else
+                {
+                    Keyboard.Focus(this);
+                }
+
+                // Load AFTER visual tree is ready so any errors are shown via dialogs
                 VM.Load();
             }
             catch (Exception ex)
@@ -125,6 +132,70 @@ namespace HillsCafeManagement.Views.Admin.Payroll
 
             Loaded -= OnLoaded;
             Unloaded -= OnUnloaded;
+        }
+
+        /// <summary>
+        /// Actions column: 📝 Edit button click handler.
+        /// Requires the DataGrid in XAML to be named 'RatesGrid' and the button wired with Click="EditRow_Click".
+        /// </summary>
+        private void EditRow_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is not PositionSalaryService.PositionSalary rowItem)
+                return;
+
+            VM.Selected = rowItem;
+
+            if (FindName("RatesGrid") is not DataGrid grid) return;
+
+            grid.UpdateLayout();
+            grid.ScrollIntoView(rowItem);
+
+            // Try to realize the row container, then focus first editable column (Position)
+            var row = (DataGridRow)grid.ItemContainerGenerator.ContainerFromItem(rowItem);
+            if (row == null)
+            {
+                grid.UpdateLayout();
+                grid.ScrollIntoView(rowItem);
+                row = (DataGridRow)grid.ItemContainerGenerator.ContainerFromItem(rowItem);
+            }
+
+            if (row != null && grid.Columns.Count > 0)
+            {
+                grid.CurrentCell = new DataGridCellInfo(rowItem, grid.Columns[0]);
+                grid.BeginEdit();
+                var content = grid.Columns[0].GetCellContent(row) as FrameworkElement;
+                content?.Focus();
+            }
+        }
+
+        /// <summary>
+        /// Actions column: 🗑 Delete button click handler.
+        /// Requires the button wired with Click="DeleteRow_Click".
+        /// </summary>
+        private void DeleteRow_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is PositionSalaryService.PositionSalary rowItem)
+            {
+                if (VM.RemoveCommand.CanExecute(rowItem))
+                    VM.RemoveCommand.Execute(rowItem);
+            }
+        }
+
+        /// <summary>
+        /// Numeric filter used by the TextBox style in XAML for DailyRate.
+        /// Allows digits and at most one '.' with up to 2 decimals.
+        /// </summary>
+        private void NumericOnly_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            var tb = sender as TextBox;
+            var text = tb?.Text ?? string.Empty;
+            var selectionStart = tb?.SelectionStart ?? 0;
+            var selectionLength = tb?.SelectionLength ?? 0;
+
+            var proposed = text.Remove(selectionStart, selectionLength)
+                               .Insert(selectionStart, e.Text);
+
+            e.Handled = !Regex.IsMatch(proposed, @"^\d*([.]\d{0,2})?$");
         }
 
         /// <summary>Allow ESC key to close the panel (host should handle CloseRequested).</summary>

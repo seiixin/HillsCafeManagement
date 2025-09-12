@@ -2,7 +2,8 @@
 // - No schema work in constructor
 // - TryEnsureSchema() + IsDbReady() expose errors without throwing
 // - Load() never throws; it sets LastError and returns whatever it could load
-// - Save() remains transactional and throws to surface real write errors
+// - Save() is transactional and ALSO deletes rows missing from the provided list
+//   (fixes: deleted items reappear after reload)
 // Drop-in replacement for your current PositionSalaryService.cs
 
 using System;
@@ -104,8 +105,8 @@ namespace HillsCafeManagement.Services
                     using var conn = new MySqlConnection(_connectionString);
                     conn.Open();
 
-                    // Fallback: use DATETIME for maximum compatibility.
-                    // We set UpdatedAt in code when saving.
+                    // Fallback: DATETIME for maximum compatibility.
+                    // We'll always set UpdatedAt in code when saving.
                     const string ddlFallback = @"
                         CREATE TABLE IF NOT EXISTS `position_salary` (
                             `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -155,6 +156,9 @@ namespace HillsCafeManagement.Services
             }
         }
 
+        /// <summary>
+        /// Loads rows. Never throws; sets LastError and returns whatever it could load.
+        /// </summary>
         public ObservableCollection<PositionSalary> Load()
         {
             var list = new ObservableCollection<PositionSalary>();
@@ -194,8 +198,10 @@ namespace HillsCafeManagement.Services
         }
 
         /// <summary>
-        /// Upserts items by Position (UNIQUE). Normalizes, dedupes, and writes in a transaction.
-        /// Throws on real write errors so callers can surface them.
+        /// Transactional save:
+        /// 1) Normalize + UPSERT provided rows
+        /// 2) DELETE any DB rows NOT in the provided list (case-insensitive by `position`)
+        /// Throws on errors so caller can surface real write failures.
         /// </summary>
         public void Save(IEnumerable<PositionSalary> items)
         {
@@ -205,7 +211,7 @@ namespace HillsCafeManagement.Services
             conn.Open();
             using var tx = conn.BeginTransaction();
 
-            const string upsert = @"
+            const string upsertSql = @"
                 INSERT INTO `position_salary` (`position`, `daily_rate`, `is_active`, `updated_at`)
                 VALUES (@position, @rate, @active, @updated)
                 ON DUPLICATE KEY UPDATE
@@ -213,43 +219,89 @@ namespace HillsCafeManagement.Services
                     `is_active`  = VALUES(`is_active`),
                     `updated_at` = VALUES(`updated_at`);";
 
-            using var cmd = new MySqlCommand(upsert, conn, tx);
-            cmd.Parameters.Add("@position", MySqlDbType.VarChar, 100);
-            cmd.Parameters.Add("@rate", MySqlDbType.Decimal);
-            cmd.Parameters["@rate"].Precision = 12; cmd.Parameters["@rate"].Scale = 2;
-            cmd.Parameters.Add("@active", MySqlDbType.Byte);
-            cmd.Parameters.Add("@updated", MySqlDbType.DateTime);
+            using var upCmd = new MySqlCommand(upsertSql, conn, tx);
+            upCmd.Parameters.Add("@position", MySqlDbType.VarChar, 100);
+            var rateParam = upCmd.Parameters.Add("@rate", MySqlDbType.Decimal);
+            rateParam.Precision = 12;
+            rateParam.Scale = 2;
+            upCmd.Parameters.Add("@active", MySqlDbType.Byte);
+            upCmd.Parameters.Add("@updated", MySqlDbType.DateTime);
 
             try
             {
+                // Normalize, clamp, dedupe (case-insensitive), keep newest UpdatedAt
                 var normalized = items
                     .Where(x => !string.IsNullOrWhiteSpace(x.Position))
                     .Select(x =>
                     {
                         var pos = x.Position.Trim();
+                        if (pos.Length > 100) pos = pos[..100];
                         var rate = x.DailyRate < 0 ? 0 : Math.Round(x.DailyRate, 2, MidpointRounding.AwayFromZero);
                         var when = x.UpdatedAt == default ? DateTime.Now : x.UpdatedAt;
                         return new PositionSalary { Position = pos, DailyRate = rate, IsActive = x.IsActive, UpdatedAt = when };
                     })
                     .GroupBy(x => x.Position, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.OrderByDescending(i => i.UpdatedAt).First());
+                    .Select(g => g.OrderByDescending(i => i.UpdatedAt).First())
+                    .ToList();
 
+                // 1) Upsert all normalized items
                 foreach (var it in normalized)
                 {
-                    cmd.Parameters["@position"].Value = it.Position;
-                    cmd.Parameters["@rate"].Value = it.DailyRate;
-                    cmd.Parameters["@active"].Value = (byte)(it.IsActive ? 1 : 0);
-                    cmd.Parameters["@updated"].Value = it.UpdatedAt;
-                    cmd.ExecuteNonQuery();
+                    upCmd.Parameters["@position"].Value = it.Position;
+                    upCmd.Parameters["@rate"].Value = it.DailyRate;
+                    upCmd.Parameters["@active"].Value = (byte)(it.IsActive ? 1 : 0);
+                    upCmd.Parameters["@updated"].Value = it.UpdatedAt;
+                    upCmd.ExecuteNonQuery();
+                }
+
+                // 2) Delete DB rows not present in normalized list
+                var keepSet = new HashSet<string>(normalized.Select(n => n.Position), StringComparer.OrdinalIgnoreCase);
+
+                var existing = new List<string>();
+                using (var selCmd = new MySqlCommand("SELECT `position` FROM `position_salary`;", conn, tx))
+                using (var r = selCmd.ExecuteReader())
+                {
+                    while (r.Read())
+                        existing.Add(r["position"]?.ToString() ?? string.Empty);
+                }
+
+                var toDelete = existing
+                    .Where(p => !string.IsNullOrWhiteSpace(p))
+                    .Where(p => !keepSet.Contains(p))
+                    .ToList();
+
+                if (toDelete.Count > 0)
+                {
+                    using var delCmd = new MySqlCommand("DELETE FROM `position_salary` WHERE `position` = @p;", conn, tx);
+                    delCmd.Parameters.Add("@p", MySqlDbType.VarChar, 100);
+
+                    foreach (var pos in toDelete)
+                    {
+                        delCmd.Parameters["@p"].Value = pos;
+                        delCmd.ExecuteNonQuery();
+                    }
                 }
 
                 tx.Commit();
             }
             catch
             {
-                try { tx.Rollback(); } catch { /* ignore rollback errors */ }
+                try { tx.Rollback(); } catch { /* ignore rollback failure */ }
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Optional explicit delete for one position.
+        /// </summary>
+        public void DeletePosition(string position)
+        {
+            if (string.IsNullOrWhiteSpace(position)) return;
+            using var conn = new MySqlConnection(_connectionString);
+            conn.Open();
+            using var cmd = new MySqlCommand("DELETE FROM `position_salary` WHERE `position` = @p;", conn);
+            cmd.Parameters.AddWithValue("@p", position.Trim());
+            cmd.ExecuteNonQuery();
         }
 
         public bool TryGetRate(string? position, out decimal rate)

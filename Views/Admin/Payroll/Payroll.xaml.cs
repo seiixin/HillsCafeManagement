@@ -47,8 +47,18 @@ namespace HillsCafeManagement.Views.Admin.Payroll
 
         private void RefreshFromDatabase()
         {
-            var data = _payrollService.GetAllPayrolls();
-            _vm.LoadPayrolls(data);
+            try
+            {
+                var data = _payrollService.GetAllPayrolls();
+                _vm.LoadPayrolls(data);
+            }
+            catch (Exception ex)
+            {
+                var root = ex.InnerException ?? ex;
+                MessageBox.Show(
+                    $"Failed to load payrolls from DB.\n\n{root.GetType().Name}: {root.Message}",
+                    "Database Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -114,6 +124,7 @@ namespace HillsCafeManagement.Views.Admin.Payroll
         {
             try
             {
+                // If you have a centralized conn string (e.g., App.DatabaseServices), pass it here.
                 var service = new PositionSalaryService();
 
                 // Ensure schema exists (non-throwing)
@@ -173,9 +184,20 @@ namespace HillsCafeManagement.Views.Admin.Payroll
 
         public bool DeletePayrollById(int id)
         {
-            var ok = _payrollService.DeletePayrollById(id);
-            if (ok) RefreshFromDatabase();
-            return ok;
+            try
+            {
+                var ok = _payrollService.DeletePayrollById(id);
+                if (ok) RefreshFromDatabase();
+                return ok;
+            }
+            catch (Exception ex)
+            {
+                var root = ex.InnerException ?? ex;
+                MessageBox.Show(
+                    $"Delete failed.\n\n{root.GetType().Name}: {root.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
         }
 
         // ===== Overlay host utilities =====
@@ -226,6 +248,8 @@ namespace HillsCafeManagement.Views.Admin.Payroll
         {
             try
             {
+                Mouse.OverrideCursor = Cursors.Wait;
+
                 var now = DateTime.Now;
                 var choice = ((PeriodCombo.SelectedItem as ComboBoxItem)?.Content as string) ?? "FirstHalf";
 
@@ -289,6 +313,10 @@ namespace HillsCafeManagement.Views.Admin.Payroll
                 MessageBox.Show(
                     $"Error generating payroll.\n\n{root.GetType().Name}: {root.Message}\n\n{root.StackTrace}",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                Mouse.OverrideCursor = null;
             }
         }
     }
