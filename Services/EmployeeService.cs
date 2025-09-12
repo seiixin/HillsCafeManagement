@@ -1,7 +1,9 @@
-﻿using HillsCafeManagement.Models;
+﻿#nullable enable
+using HillsCafeManagement.Models;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
+using System.Data;
 
 namespace HillsCafeManagement.Services
 {
@@ -14,7 +16,7 @@ namespace HillsCafeManagement.Services
         bool AddEmployee(EmployeeModel employee);
         bool DeleteEmployee(int employeeId);
 
-        // NEW: map logged-in user (users.id) -> employees.id
+        // map logged-in user (users.id) -> employees.id
         int? GetEmployeeIdByUserId(int userId);
     }
 
@@ -59,7 +61,7 @@ namespace HillsCafeManagement.Services
                 {
                     var emp = MapEmployee(reader);
 
-                    if (!reader.IsDBNull(reader.GetOrdinal("user_id")))
+                    if (HasColumn(reader, "user_id") && !reader.IsDBNull(reader.GetOrdinal("user_id")))
                     {
                         emp.UserAccount = new UserModel
                         {
@@ -107,7 +109,7 @@ namespace HillsCafeManagement.Services
 
                 var emp = MapEmployee(reader);
 
-                if (!reader.IsDBNull(reader.GetOrdinal("user_id")))
+                if (HasColumn(reader, "user_id") && !reader.IsDBNull(reader.GetOrdinal("user_id")))
                 {
                     emp.UserAccount = new UserModel
                     {
@@ -141,10 +143,10 @@ namespace HillsCafeManagement.Services
 
                 const string sql = @"
                     INSERT INTO employees 
-                    (full_name, age, sex, address, birthday, contact_number, position, salary_per_day, shift,
+                    (full_name, age, sex, address, birthday, contact_number, position, salary_per_day, work_schedule_id, shift,
                      sss_number, philhealth_number, pagibig_number, image_url, emergency_contact, date_hired, created_at)
                     VALUES
-                    (@FullName, @Age, @Sex, @Address, @Birthday, @ContactNumber, @Position, @SalaryPerDay, @Shift,
+                    (@FullName, @Age, @Sex, @Address, @Birthday, @ContactNumber, @Position, @SalaryPerDay, @WorkScheduleId, @Shift,
                      @SssNumber, @PhilhealthNumber, @PagibigNumber, @ImageUrl, @EmergencyContact, @DateHired, @CreatedAt);
                     SELECT LAST_INSERT_ID();";
 
@@ -157,6 +159,7 @@ namespace HillsCafeManagement.Services
                 cmd.Parameters.AddWithValue("@ContactNumber", ParamOrDbNull(employee.ContactNumber));
                 cmd.Parameters.AddWithValue("@Position", ParamOrDbNull(employee.Position));
                 cmd.Parameters.AddWithValue("@SalaryPerDay", ParamOrDbNull(employee.SalaryPerDay));
+                cmd.Parameters.AddWithValue("@WorkScheduleId", ParamOrDbNull(employee.WorkScheduleId)); // NEW
                 cmd.Parameters.AddWithValue("@Shift", ParamOrDbNull(employee.Shift));
                 cmd.Parameters.AddWithValue("@SssNumber", ParamOrDbNull(employee.SssNumber));
                 cmd.Parameters.AddWithValue("@PhilhealthNumber", ParamOrDbNull(employee.PhilhealthNumber));
@@ -201,6 +204,7 @@ namespace HillsCafeManagement.Services
                         contact_number    = @ContactNumber,
                         position          = @Position,
                         salary_per_day    = @SalaryPerDay,
+                        work_schedule_id  = @WorkScheduleId,
                         shift             = @Shift,
                         sss_number        = @SssNumber,
                         philhealth_number = @PhilhealthNumber,
@@ -219,6 +223,7 @@ namespace HillsCafeManagement.Services
                 cmd.Parameters.AddWithValue("@ContactNumber", ParamOrDbNull(employee.ContactNumber));
                 cmd.Parameters.AddWithValue("@Position", ParamOrDbNull(employee.Position));
                 cmd.Parameters.AddWithValue("@SalaryPerDay", ParamOrDbNull(employee.SalaryPerDay));
+                cmd.Parameters.AddWithValue("@WorkScheduleId", ParamOrDbNull(employee.WorkScheduleId)); // NEW
                 cmd.Parameters.AddWithValue("@Shift", ParamOrDbNull(employee.Shift));
                 cmd.Parameters.AddWithValue("@SssNumber", ParamOrDbNull(employee.SssNumber));
                 cmd.Parameters.AddWithValue("@PhilhealthNumber", ParamOrDbNull(employee.PhilhealthNumber));
@@ -294,7 +299,7 @@ namespace HillsCafeManagement.Services
         }
 
         // =====================================================================
-        // USER → EMPLOYEE MAPPING (NEW)
+        // USER → EMPLOYEE MAPPING
         // =====================================================================
 
         public int? GetEmployeeIdByUserId(int userId)
@@ -302,7 +307,6 @@ namespace HillsCafeManagement.Services
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
-            // Your schema: users.employee_id -> employees.id
             const string sql = "SELECT employee_id FROM users WHERE id = @uid LIMIT 1;";
             using var cmd = new MySqlCommand(sql, connection);
             cmd.Parameters.AddWithValue("@uid", userId);
@@ -318,27 +322,44 @@ namespace HillsCafeManagement.Services
         // Mapper / helpers
         // =====================================================================
 
-        private static EmployeeModel MapEmployee(MySqlDataReader r) => new EmployeeModel
+        private static EmployeeModel MapEmployee(MySqlDataReader r)
         {
-            Id = r.GetInt32("id"),
-            FullName = r["full_name"]?.ToString(),
-            Age = r.IsDBNull(r.GetOrdinal("age")) ? (int?)null : r.GetInt32("age"),
-            Sex = r["sex"]?.ToString(),
-            Address = r["address"]?.ToString(),
-            Birthday = r.IsDBNull(r.GetOrdinal("birthday")) ? (DateTime?)null : r.GetDateTime("birthday"),
-            ContactNumber = r["contact_number"]?.ToString(),
-            Position = r["position"]?.ToString(),
-            SalaryPerDay = r.IsDBNull(r.GetOrdinal("salary_per_day")) ? (decimal?)null : r.GetDecimal("salary_per_day"),
-            Shift = r["shift"]?.ToString(),
-            SssNumber = r["sss_number"]?.ToString(),
-            PhilhealthNumber = r["philhealth_number"]?.ToString(),
-            PagibigNumber = r["pagibig_number"]?.ToString(),
-            ImageUrl = r["image_url"]?.ToString(),
-            EmergencyContact = r["emergency_contact"]?.ToString(),
-            DateHired = r.IsDBNull(r.GetOrdinal("date_hired")) ? (DateTime?)null : r.GetDateTime("date_hired"),
-            CreatedAt = r.IsDBNull(r.GetOrdinal("created_at")) ? DateTime.Now : r.GetDateTime("created_at")
-        };
+            var model = new EmployeeModel
+            {
+                Id = r.GetInt32("id"),
+                FullName = r["full_name"]?.ToString(),
+                Age = HasColumn(r, "age") && !r.IsDBNull(r.GetOrdinal("age")) ? r.GetInt32("age") : (int?)null,
+                Sex = r["sex"]?.ToString(),
+                Address = r["address"]?.ToString(),
+                Birthday = HasColumn(r, "birthday") && !r.IsDBNull(r.GetOrdinal("birthday")) ? r.GetDateTime("birthday") : (DateTime?)null,
+                ContactNumber = r["contact_number"]?.ToString(),
+                Position = r["position"]?.ToString(),
+                SalaryPerDay = HasColumn(r, "salary_per_day") && !r.IsDBNull(r.GetOrdinal("salary_per_day")) ? r.GetDecimal("salary_per_day") : (decimal?)null,
+                // NEW:
+                WorkScheduleId = HasColumn(r, "work_schedule_id") && !r.IsDBNull(r.GetOrdinal("work_schedule_id")) ? r.GetInt32("work_schedule_id") : (int?)null,
+                Shift = r["shift"]?.ToString(),
+                SssNumber = r["sss_number"]?.ToString(),
+                PhilhealthNumber = r["philhealth_number"]?.ToString(),
+                PagibigNumber = r["pagibig_number"]?.ToString(),
+                ImageUrl = r["image_url"]?.ToString(),
+                EmergencyContact = r["emergency_contact"]?.ToString(),
+                DateHired = HasColumn(r, "date_hired") && !r.IsDBNull(r.GetOrdinal("date_hired")) ? r.GetDateTime("date_hired") : (DateTime?)null,
+                CreatedAt = HasColumn(r, "created_at") && !r.IsDBNull(r.GetOrdinal("created_at")) ? r.GetDateTime("created_at") : DateTime.Now
+            };
+
+            return model;
+        }
 
         private static object ParamOrDbNull(object? value) => value ?? DBNull.Value;
+
+        private static bool HasColumn(IDataRecord r, string name)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+            {
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
     }
 }

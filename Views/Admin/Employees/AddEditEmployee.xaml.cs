@@ -1,4 +1,5 @@
-﻿using HillsCafeManagement.Models;
+﻿#nullable enable
+using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
 using System;
 using System.Globalization;
@@ -12,6 +13,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
     {
         private readonly EmployeeService _employeeService = new();
         private readonly PositionSalaryService _positionSalaryService = new();
+        private readonly WorkScheduleService _workScheduleService = new();   // NEW
 
         private readonly bool _isEditMode;
         private readonly EmployeeModel? _editingEmployee;
@@ -24,8 +26,9 @@ namespace HillsCafeManagement.Views.Admin.Employees
         {
             InitializeComponent();
 
-            // Populate position suggestions from DB presets
+            // Populate dropdowns
             PopulatePositions();
+            PopulateWorkSchedules(); // NEW
 
             if (employee != null)
             {
@@ -52,6 +55,11 @@ namespace HillsCafeManagement.Views.Admin.Employees
                     TryAutoFillSalaryFromPosition();
 
                 ShiftComboBox.SelectedItem = GetComboBoxItemByContent(ShiftComboBox, employee.Shift);
+
+                // NEW: select current Work Schedule (if any)
+                if (employee.WorkScheduleId.HasValue)
+                    WorkScheduleComboBox.SelectedValue = employee.WorkScheduleId.Value;
+
                 SssNumberTextBox.Text = employee.SssNumber ?? string.Empty;
                 PhilhealthNumberTextBox.Text = employee.PhilhealthNumber ?? string.Empty;
                 PagibigNumberTextBox.Text = employee.PagibigNumber ?? string.Empty;
@@ -121,6 +129,11 @@ namespace HillsCafeManagement.Views.Admin.Employees
                                  NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSalary))
                 salaryPerDay = parsedSalary;
 
+            // NEW: get selected WorkScheduleId (SelectedValuePath="Id")
+            int? workScheduleId = null;
+            if (WorkScheduleComboBox.SelectedValue is int id)
+                workScheduleId = id;
+
             // Prepare employee object
             var employee = new EmployeeModel
             {
@@ -133,6 +146,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 Position = posText,
                 SalaryPerDay = salaryPerDay,
                 Shift = (ShiftComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString(),
+                WorkScheduleId = workScheduleId, // NEW
                 SssNumber = (SssNumberTextBox.Text ?? string.Empty).Trim(),
                 PhilhealthNumber = (PhilhealthNumberTextBox.Text ?? string.Empty).Trim(),
                 PagibigNumber = (PagibigNumberTextBox.Text ?? string.Empty).Trim(),
@@ -198,8 +212,28 @@ namespace HillsCafeManagement.Views.Admin.Employees
             }
             catch (Exception ex)
             {
-                // Non-fatal; just show a hint
+                // Non-fatal; just log
                 Console.Error.WriteLine("Failed to load position presets: " + ex.Message);
+            }
+        }
+
+        // NEW: load work schedules into the combo
+        private void PopulateWorkSchedules()
+        {
+            try
+            {
+                var list = _workScheduleService.Load()
+                                               .Where(s => s.IsActive)
+                                               .OrderBy(s => s.Label, StringComparer.OrdinalIgnoreCase)
+                                               .ToList();
+
+                WorkScheduleComboBox.DisplayMemberPath = "Label";
+                WorkScheduleComboBox.SelectedValuePath = "Id";
+                WorkScheduleComboBox.ItemsSource = list;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Failed to load work schedules: " + ex.Message);
             }
         }
 

@@ -40,19 +40,15 @@
 
                 <!-- Full Name -->
                 <TextBlock Text="Full Name:" FontWeight="Bold" />
-                <TextBox x:Name="FullNameTextBox"
-                         Margin="0,0,0,10" />
+                <TextBox x:Name="FullNameTextBox" Margin="0,0,0,10" />
 
                 <!-- Age -->
                 <TextBlock Text="Age:" FontWeight="Bold" />
-                <TextBox x:Name="AgeTextBox"
-                         Margin="0,0,0,10" />
+                <TextBox x:Name="AgeTextBox" Margin="0,0,0,10" />
 
                 <!-- Sex -->
                 <TextBlock Text="Sex:" FontWeight="Bold" />
-                <ComboBox x:Name="SexComboBox"
-                          Margin="0,0,0,10"
-                          SelectedIndex="0">
+                <ComboBox x:Name="SexComboBox" Margin="0,0,0,10" SelectedIndex="0">
                     <ComboBoxItem Content="Male" />
                     <ComboBoxItem Content="Female" />
                     <ComboBoxItem Content="Other" />
@@ -60,21 +56,17 @@
 
                 <!-- Address -->
                 <TextBlock Text="Address:" FontWeight="Bold" />
-                <TextBox x:Name="AddressTextBox"
-                         Margin="0,0,0,10" />
+                <TextBox x:Name="AddressTextBox" Margin="0,0,0,10" />
 
                 <!-- Birthday -->
                 <TextBlock Text="Birthday:" FontWeight="Bold" />
-                <DatePicker x:Name="BirthdayDatePicker"
-                            Margin="0,0,0,10"
-                            SelectedDateFormat="Short" />
+                <DatePicker x:Name="BirthdayDatePicker" Margin="0,0,0,10" SelectedDateFormat="Short" />
 
                 <!-- Contact Number -->
                 <TextBlock Text="Contact Number:" FontWeight="Bold" />
-                <TextBox x:Name="ContactNumberTextBox"
-                         Margin="0,0,0,10" />
+                <TextBox x:Name="ContactNumberTextBox" Margin="0,0,0,10" />
 
-                <!-- Position (ComboBox for auto-fill) -->
+                <!-- Position -->
                 <TextBlock Text="Position:" FontWeight="Bold" />
                 <ComboBox x:Name="PositionComboBox"
                           IsEditable="True"
@@ -82,13 +74,10 @@
                           StaysOpenOnEdit="True"
                           IsTextSearchEnabled="True"
                           SelectionChanged="PositionComboBox_SelectionChanged"/>
-                <!-- Position hint -->
                 <TextBlock Text="(Start typing to search…)"
-                           Foreground="#777"
-                           FontSize="11"
-                           Margin="0,0,0,10"/>
+                           Foreground="#777" FontSize="11" Margin="0,0,0,10"/>
 
-                <!-- Salary Per Day (auto-filled, with manual override) -->
+                <!-- Salary Per Day + manual override -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,2">
                     <TextBlock Text="Salary Per Day:" FontWeight="Bold" VerticalAlignment="Center"/>
                     <CheckBox x:Name="ManualOverrideCheckBox"
@@ -104,60 +93,52 @@
                          IsReadOnly="True"
                          ToolTip="Auto-filled from position. Enable Manual Override to edit." />
 
+                <!-- NEW: Work Schedule -->
+                <TextBlock Text="Work Schedule:" FontWeight="Bold" />
+                <ComboBox x:Name="WorkScheduleComboBox"
+                          Margin="0,0,0,10"
+                          DisplayMemberPath="Label"
+                          SelectedValuePath="Id" />
+                <!-- (Optional hint)
+                <TextBlock Text="Manage schedules in Attendance → Work Schedule Setup."
+                           Foreground="#777" FontSize="11" Margin="0,-6,0,10"/> -->
+
                 <!-- Shift -->
                 <TextBlock Text="Shift:" FontWeight="Bold" />
-                <ComboBox x:Name="ShiftComboBox"
-                          Margin="0,0,0,10"
-                          SelectedIndex="0">
+                <ComboBox x:Name="ShiftComboBox" Margin="0,0,0,10" SelectedIndex="0">
                     <ComboBoxItem Content="Morning" />
                     <ComboBoxItem Content="Afternoon" />
                     <ComboBoxItem Content="Night" />
                 </ComboBox>
 
-                <!-- SSS Number -->
+                <!-- SSS -->
                 <TextBlock Text="SSS Number:" FontWeight="Bold" />
-                <TextBox x:Name="SssNumberTextBox"
-                         Margin="0,0,0,10" />
+                <TextBox x:Name="SssNumberTextBox" Margin="0,0,0,10" />
 
-                <!-- Philhealth Number -->
+                <!-- Philhealth -->
                 <TextBlock Text="Philhealth Number:" FontWeight="Bold" />
-                <TextBox x:Name="PhilhealthNumberTextBox"
-                         Margin="0,0,0,10" />
+                <TextBox x:Name="PhilhealthNumberTextBox" Margin="0,0,0,10" />
 
-                <!-- Pagibig Number -->
+                <!-- Pagibig -->
                 <TextBlock Text="Pagibig Number:" FontWeight="Bold" />
-                <TextBox x:Name="PagibigNumberTextBox"
-                         Margin="0,0,0,10" />
+                <TextBox x:Name="PagibigNumberTextBox" Margin="0,0,0,10" />
 
                 <!-- Image URL -->
                 <TextBlock Text="Image URL:" FontWeight="Bold" />
-                <TextBox x:Name="ImageUrlTextBox"
-                         Margin="0,0,0,10" />
+                <TextBox x:Name="ImageUrlTextBox" Margin="0,0,0,10" />
 
                 <!-- Emergency Contact -->
                 <TextBlock Text="Emergency Contact:" FontWeight="Bold" />
-                <TextBox x:Name="EmergencyContactTextBox"
-                         Margin="0,0,0,10" />
+                <TextBox x:Name="EmergencyContactTextBox" Margin="0,0,0,10" />
 
                 <!-- Date Hired -->
                 <TextBlock Text="Date Hired:" FontWeight="Bold" />
-                <DatePicker x:Name="DateHiredDatePicker"
-                            Margin="0,0,0,15"
-                            SelectedDateFormat="Short" />
+                <DatePicker x:Name="DateHiredDatePicker" Margin="0,0,0,15" SelectedDateFormat="Short" />
 
                 <!-- Buttons -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="Cancel"
-                            Margin="0,0,10,0"
-                            Padding="8,4"
-                            Click="Cancel_Click" />
-
-                    <Button x:Name="SaveButton"
-                            Content="Save"
-                            Background="#6378FF"
-                            Foreground="White"
-                            Padding="8,4"
-                            Click="Save_Click" />
+                    <Button Content="Cancel" Margin="0,0,10,0" Padding="8,4" Click="Cancel_Click" />
+                    <Button x:Name="SaveButton" Content="Save" Background="#6378FF" Foreground="White" Padding="8,4" Click="Save_Click" />
                 </StackPanel>
 
             </StackPanel>
