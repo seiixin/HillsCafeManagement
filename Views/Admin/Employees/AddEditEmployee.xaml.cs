@@ -1,11 +1,14 @@
 ﻿#nullable enable
 using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
+using Microsoft.Win32;
 using System;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 
 namespace HillsCafeManagement.Views.Admin.Employees
 {
@@ -17,6 +20,9 @@ namespace HillsCafeManagement.Views.Admin.Employees
 
         private readonly bool _isEditMode;
         private readonly EmployeeModel? _editingEmployee;
+
+        // Holds the chosen local image path before Save
+        private string? _selectedImagePath;
 
         // Notify parent when saved
         public delegate void EmployeeSavedHandler();
@@ -66,7 +72,15 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 SssNumberTextBox.Text = employee.SssNumber ?? string.Empty;
                 PhilhealthNumberTextBox.Text = employee.PhilhealthNumber ?? string.Empty;
                 PagibigNumberTextBox.Text = employee.PagibigNumber ?? string.Empty;
-                ImageUrlTextBox.Text = employee.ImageUrl ?? string.Empty;
+
+                // Image preview for existing photo
+                if (!string.IsNullOrWhiteSpace(employee.ImageUrl))
+                {
+                    TryShowImagePreview(employee.ImageUrl!);
+                    if (SelectedImageLabel != null)
+                        SelectedImageLabel.Text = System.IO.Path.GetFileName(employee.ImageUrl);
+                }
+
                 EmergencyContactTextBox.Text = employee.EmergencyContact ?? string.Empty;
                 DateHiredDatePicker.SelectedDate = employee.DateHired;
             }
@@ -94,11 +108,30 @@ namespace HillsCafeManagement.Views.Admin.Employees
         }
 
         private void ManualOverrideCheckBox_Checked(object sender, RoutedEventArgs e) => SetSalaryReadOnlyState();
+
         private void ManualOverrideCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
             SetSalaryReadOnlyState();
             // When turning override OFF, refresh to preset
             TryAutoFillSalaryFromPosition();
+        }
+
+        private void UploadImage_Click(object sender, RoutedEventArgs e)
+        {
+            var ofd = new OpenFileDialog
+            {
+                Title = "Select Profile Photo",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.webp;*.bmp",
+                Multiselect = false
+            };
+
+            if (ofd.ShowDialog() == true)
+            {
+                _selectedImagePath = ofd.FileName;
+                if (SelectedImageLabel != null)
+                    SelectedImageLabel.Text = System.IO.Path.GetFileName(_selectedImagePath);
+                TryShowImagePreview(_selectedImagePath);
+            }
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -139,6 +172,11 @@ namespace HillsCafeManagement.Views.Admin.Employees
             if (string.IsNullOrWhiteSpace(shiftText))
                 shiftText = "Morning";
 
+            // Save uploaded photo (if any). If none, keep existing on edit; otherwise null.
+            var newImageUrl = SaveProfilePhotoIfAny();
+            var effectiveImageUrl = newImageUrl
+                ?? (_isEditMode ? _editingEmployee?.ImageUrl : null);
+
             // Prepare employee object
             var employee = new EmployeeModel
             {
@@ -155,7 +193,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 SssNumber = (SssNumberTextBox.Text ?? string.Empty).Trim(),
                 PhilhealthNumber = (PhilhealthNumberTextBox.Text ?? string.Empty).Trim(),
                 PagibigNumber = (PagibigNumberTextBox.Text ?? string.Empty).Trim(),
-                ImageUrl = (ImageUrlTextBox.Text ?? string.Empty).Trim(),
+                ImageUrl = effectiveImageUrl ?? string.Empty,
                 EmergencyContact = (EmergencyContactTextBox.Text ?? string.Empty).Trim(),
                 DateHired = DateHiredDatePicker.SelectedDate
             };
@@ -236,7 +274,7 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 WorkScheduleComboBox.SelectedValuePath = "Id";
                 WorkScheduleComboBox.ItemsSource = list;
 
-                // If there's exactly one active schedule, you can auto-select it (optional):
+                // Optional auto-select one schedule:
                 // if (list.Count == 1) WorkScheduleComboBox.SelectedIndex = 0;
             }
             catch (Exception ex)
@@ -277,6 +315,66 @@ namespace HillsCafeManagement.Views.Admin.Employees
                     return cbi;
             }
             return null;
+        }
+
+        private string? SaveProfilePhotoIfAny()
+        {
+            if (string.IsNullOrWhiteSpace(_selectedImagePath) || !File.Exists(_selectedImagePath))
+                return null;
+
+            // Save to app-local folder: <app>/Images/Employees/<guid>.<ext>
+            var appDir = AppDomain.CurrentDomain.BaseDirectory;
+            var targetDir = System.IO.Path.Combine(appDir, "Images", "Employees");
+            Directory.CreateDirectory(targetDir);
+
+            var ext = System.IO.Path.GetExtension(_selectedImagePath);
+            var fileName = $"{Guid.NewGuid():N}{ext}";
+            var destPath = System.IO.Path.Combine(targetDir, fileName);
+
+            File.Copy(_selectedImagePath, destPath, overwrite: false);
+
+            // Return a relative path (easier to move the app)
+            var relative = System.IO.Path.Combine("Images", "Employees", fileName)
+                            .Replace('\\', '/');
+            return relative;
+        }
+
+        private void TryShowImagePreview(string path)
+        {
+            try
+            {
+                // Convert relative app path to absolute if needed
+                Uri uri;
+                if (Uri.IsWellFormedUriString(path, UriKind.Absolute))
+                {
+                    uri = new Uri(path, UriKind.Absolute);
+                }
+                else
+                {
+                    var abs = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+                    uri = new Uri(abs, UriKind.Absolute);
+                }
+
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.UriSource = uri;
+                bmp.EndInit();
+
+                if (ImagePreview != null)
+                {
+                    ImagePreview.Source = bmp;
+                    ImagePreview.Visibility = Visibility.Visible;
+                }
+            }
+            catch
+            {
+                if (ImagePreview != null)
+                {
+                    ImagePreview.Source = null;
+                    ImagePreview.Visibility = Visibility.Collapsed;
+                }
+            }
         }
     }
 }

@@ -124,8 +124,27 @@
                 <TextBox x:Name="PagibigNumberTextBox" Margin="0,0,0,10" />
 
                 <!-- Image URL -->
-                <TextBlock Text="Image URL:" FontWeight="Bold" />
-                <TextBox x:Name="ImageUrlTextBox" Margin="0,0,0,10" />
+                <!-- Profile Photo -->
+                <TextBlock Text="Profile Photo:" FontWeight="Bold" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
+                    <Button x:Name="UploadImageButton"
+            Content="Upload Photo"
+            Padding="8,4"
+            Click="UploadImage_Click"/>
+                    <TextBlock x:Name="SelectedImageLabel"
+               Margin="10,0,0,0"
+               VerticalAlignment="Center"
+               Foreground="#555"
+               Text="No file selected"/>
+                </StackPanel>
+
+                <!-- Optional preview (shown after selecting a file or when editing with existing photo) -->
+                <Image x:Name="ImagePreview"
+       Height="120"
+       Stretch="Uniform"
+       Margin="0,0,0,10"
+       Visibility="Collapsed"/>
+
 
                 <!-- Emergency Contact -->
                 <TextBlock Text="Emergency Contact:" FontWeight="Bold" />
