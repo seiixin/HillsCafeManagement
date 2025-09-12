@@ -1,16 +1,25 @@
-﻿using HillsCafeManagement.Models;
+﻿#nullable enable
+using HillsCafeManagement.Models;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 
 namespace HillsCafeManagement.Services
 {
+    /// <summary>
+    /// Consolidated DB access. Authentication enforces users.is_active = 1.
+    /// </summary>
     public class DatabaseService
     {
         private readonly string _connectionString = "server=localhost;user=root;password=;database=hillscafe_db;";
 
         #region Authentication
 
+        /// <summary>
+        /// Returns a user when email+password match AND account is active (users.is_active = 1).
+        /// Returns null otherwise.
+        /// NOTE: This currently compares plaintext passwords to match your existing code.
+        /// </summary>
         public UserModel? AuthenticateUser(string email, string password)
         {
             try
@@ -20,16 +29,19 @@ namespace HillsCafeManagement.Services
 
                 const string query = @"
                     SELECT 
-                        u.id AS user_id,
+                        u.id          AS user_id,
                         u.email,
                         u.password,
                         u.role,
                         u.employee_id,
+                        u.is_active   AS user_is_active,
                         e.full_name,
                         e.position
                     FROM users u
                     LEFT JOIN employees e ON u.employee_id = e.id
-                    WHERE u.email = @Email AND u.password = @Password
+                    WHERE u.email = @Email
+                      AND u.password = @Password
+                      AND u.is_active = 1
                     LIMIT 1;";
 
                 using var cmd = new MySqlCommand(query, connection);
@@ -38,37 +50,52 @@ namespace HillsCafeManagement.Services
 
                 using var reader = cmd.ExecuteReader();
 
-                if (reader.Read())
+                if (!reader.Read()) return null;
+
+                EmployeeModel? employee = null;
+
+                if (!reader.IsDBNull(reader.GetOrdinal("employee_id")))
                 {
-                    EmployeeModel? employee = null;
-
-                    if (!reader.IsDBNull(reader.GetOrdinal("employee_id")))
+                    employee = new EmployeeModel
                     {
-                        employee = new EmployeeModel
-                        {
-                            Id = reader.GetInt32("employee_id"),
-                            FullName = reader["full_name"]?.ToString(),
-                            Position = reader["position"]?.ToString()
-                        };
-                    }
-
-                    return new UserModel
-                    {
-                        Id = reader.GetInt32("user_id"),
-                        Email = reader["email"]?.ToString(),
-                        Password = reader["password"]?.ToString(),
-                        Role = reader["role"]?.ToString(),
-                        EmployeeId = reader.IsDBNull(reader.GetOrdinal("employee_id")) ? null : reader.GetInt32("employee_id"),
-                        Employee = employee
+                        Id = reader.GetInt32("employee_id"),
+                        FullName = reader["full_name"]?.ToString(),
+                        Position = reader["position"]?.ToString()
                     };
                 }
+
+                // Map user, including IsActive (it will always be true here due to WHERE, but we map for completeness)
+                var user = new UserModel
+                {
+                    Id = reader.GetInt32("user_id"),
+                    Email = reader["email"]?.ToString(),
+                    Password = reader["password"]?.ToString(),
+                    Role = reader["role"]?.ToString(),
+                    EmployeeId = reader.IsDBNull(reader.GetOrdinal("employee_id")) ? null : reader.GetInt32("employee_id"),
+                    IsActive = ReadTinyIntAsBool(reader, "user_is_active", true),
+                    Employee = employee
+                };
+
+                return user;
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine("Login error: " + ex.Message);
+                return null;
             }
+        }
 
-            return null;
+        private static bool ReadTinyIntAsBool(MySqlDataReader r, string col, bool defaultValue = false)
+        {
+            try
+            {
+                if (r.IsDBNull(r.GetOrdinal(col))) return defaultValue;
+                return Convert.ToInt32(r[col]) == 1;
+            }
+            catch
+            {
+                return defaultValue;
+            }
         }
 
         #endregion
@@ -106,6 +133,7 @@ namespace HillsCafeManagement.Services
                         Id = reader.GetInt32("id"),
                         Name = reader["name"]?.ToString(),
                         Category = reader["category"]?.ToString(),
+                        // keep your existing typing assumptions
                         Price = reader["price"] as decimal?,
                         ImageUrl = reader["image_url"]?.ToString(),
                         Description = reader["description"]?.ToString(),

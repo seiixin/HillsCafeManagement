@@ -18,6 +18,10 @@ namespace HillsCafeManagement.Services
 
         // map logged-in user (users.id) -> employees.id
         int? GetEmployeeIdByUserId(int userId);
+
+        // NEW: status controls
+        bool SetUserActiveStatusByEmployeeId(int employeeId, bool isActive);
+        bool SetUserActiveStatusByUserId(int userId, bool isActive);
     }
 
     public sealed class EmployeeService : IEmployeeService
@@ -47,9 +51,10 @@ namespace HillsCafeManagement.Services
                 const string sql = @"
                     SELECT 
                         e.*,
-                        u.id    AS user_id,
-                        u.email AS email,
-                        u.role  AS role
+                        u.id         AS user_id,
+                        u.email      AS email,
+                        u.role       AS role,
+                        u.is_active  AS user_is_active
                     FROM employees e
                     LEFT JOIN users u ON u.employee_id = e.id
                     ORDER BY e.id DESC;";
@@ -68,7 +73,8 @@ namespace HillsCafeManagement.Services
                             Id = reader.GetInt32("user_id"),
                             Email = reader["email"]?.ToString(),
                             Role = reader["role"]?.ToString(),
-                            EmployeeId = emp.Id
+                            EmployeeId = emp.Id,
+                            IsActive = ReadTinyIntBool(reader, "user_is_active", defaultValue: true)
                         };
                     }
 
@@ -93,9 +99,10 @@ namespace HillsCafeManagement.Services
                 const string sql = @"
                     SELECT 
                         e.*,
-                        u.id    AS user_id,
-                        u.email AS email,
-                        u.role  AS role
+                        u.id         AS user_id,
+                        u.email      AS email,
+                        u.role       AS role,
+                        u.is_active  AS user_is_active
                     FROM employees e
                     LEFT JOIN users u ON u.employee_id = e.id
                     WHERE e.id = @id
@@ -116,7 +123,8 @@ namespace HillsCafeManagement.Services
                         Id = reader.GetInt32("user_id"),
                         Email = reader["email"]?.ToString(),
                         Role = reader["role"]?.ToString(),
-                        EmployeeId = emp.Id
+                        EmployeeId = emp.Id,
+                        IsActive = ReadTinyIntBool(reader, "user_is_active", defaultValue: true)
                     };
                 }
 
@@ -159,7 +167,7 @@ namespace HillsCafeManagement.Services
                 cmd.Parameters.AddWithValue("@ContactNumber", ParamOrDbNull(employee.ContactNumber));
                 cmd.Parameters.AddWithValue("@Position", ParamOrDbNull(employee.Position));
                 cmd.Parameters.AddWithValue("@SalaryPerDay", ParamOrDbNull(employee.SalaryPerDay));
-                cmd.Parameters.AddWithValue("@WorkScheduleId", ParamOrDbNull(employee.WorkScheduleId)); // NEW
+                cmd.Parameters.AddWithValue("@WorkScheduleId", ParamOrDbNull(employee.WorkScheduleId));
                 cmd.Parameters.AddWithValue("@Shift", ParamOrDbNull(employee.Shift));
                 cmd.Parameters.AddWithValue("@SssNumber", ParamOrDbNull(employee.SssNumber));
                 cmd.Parameters.AddWithValue("@PhilhealthNumber", ParamOrDbNull(employee.PhilhealthNumber));
@@ -222,7 +230,7 @@ namespace HillsCafeManagement.Services
                 cmd.Parameters.AddWithValue("@ContactNumber", ParamOrDbNull(employee.ContactNumber));
                 cmd.Parameters.AddWithValue("@Position", ParamOrDbNull(employee.Position));
                 cmd.Parameters.AddWithValue("@SalaryPerDay", ParamOrDbNull(employee.SalaryPerDay));
-                cmd.Parameters.AddWithValue("@WorkScheduleId", ParamOrDbNull(employee.WorkScheduleId)); // NEW
+                cmd.Parameters.AddWithValue("@WorkScheduleId", ParamOrDbNull(employee.WorkScheduleId));
                 cmd.Parameters.AddWithValue("@Shift", ParamOrDbNull(employee.Shift));
                 cmd.Parameters.AddWithValue("@SssNumber", ParamOrDbNull(employee.SssNumber));
                 cmd.Parameters.AddWithValue("@PhilhealthNumber", ParamOrDbNull(employee.PhilhealthNumber));
@@ -318,6 +326,52 @@ namespace HillsCafeManagement.Services
         }
 
         // =====================================================================
+        // NEW: Active/Inactive status setters
+        // =====================================================================
+
+        public bool SetUserActiveStatusByEmployeeId(int employeeId, bool isActive)
+        {
+            try
+            {
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
+
+                const string sql = "UPDATE users SET is_active = @active WHERE employee_id = @eid;";
+                using var cmd = new MySqlCommand(sql, connection);
+                cmd.Parameters.AddWithValue("@active", isActive ? 1 : 0);
+                cmd.Parameters.AddWithValue("@eid", employeeId);
+
+                return cmd.ExecuteNonQuery() > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error updating user active status by employee_id: " + ex.Message);
+                return false;
+            }
+        }
+
+        public bool SetUserActiveStatusByUserId(int userId, bool isActive)
+        {
+            try
+            {
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
+
+                const string sql = "UPDATE users SET is_active = @active WHERE id = @uid;";
+                using var cmd = new MySqlCommand(sql, connection);
+                cmd.Parameters.AddWithValue("@active", isActive ? 1 : 0);
+                cmd.Parameters.AddWithValue("@uid", userId);
+
+                return cmd.ExecuteNonQuery() > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error updating user active status by user_id: " + ex.Message);
+                return false;
+            }
+        }
+
+        // =====================================================================
         // Mapper / helpers
         // =====================================================================
 
@@ -334,7 +388,7 @@ namespace HillsCafeManagement.Services
                 ContactNumber = r["contact_number"]?.ToString(),
                 Position = r["position"]?.ToString(),
                 SalaryPerDay = HasColumn(r, "salary_per_day") && !r.IsDBNull(r.GetOrdinal("salary_per_day")) ? r.GetDecimal("salary_per_day") : (decimal?)null,
-                // NEW:
+
                 WorkScheduleId = HasColumn(r, "work_schedule_id") && !r.IsDBNull(r.GetOrdinal("work_schedule_id")) ? r.GetInt32("work_schedule_id") : (int?)null,
                 Shift = r["shift"]?.ToString(),
                 SssNumber = r["sss_number"]?.ToString(),
@@ -349,15 +403,21 @@ namespace HillsCafeManagement.Services
             return model;
         }
 
+        private static bool ReadTinyIntBool(IDataRecord r, string col, bool defaultValue = false)
+        {
+            if (!HasColumn(r, col) || r.IsDBNull(r.GetOrdinal(col))) return defaultValue;
+            // MySQL TINYINT(1) comes as sbyte/int/long depending on provider; normalize to bool.
+            try { return Convert.ToInt32(r[col]) == 1; }
+            catch { return defaultValue; }
+        }
+
         private static object ParamOrDbNull(object? value) => value ?? DBNull.Value;
 
         private static bool HasColumn(IDataRecord r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
-            {
                 if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
                     return true;
-            }
             return false;
         }
     }

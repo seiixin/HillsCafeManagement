@@ -12,6 +12,10 @@
 
     <UserControl.Resources>
         <helpers:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibilityConverter" />
+
+        <!-- Converters for status column -->
+        <helpers:BoolToBrushConverter x:Key="BoolToBrush" />
+        <helpers:BoolToTextConverter  x:Key="BoolToText" />
     </UserControl.Resources>
 
     <Grid x:Name="RootGrid" Margin="20">
@@ -34,6 +38,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+            <!-- ✅ fixed closing tag -->
 
             <!-- Search Box -->
             <Border Background="#D9D9D9" CornerRadius="10" Padding="8" Margin="0,0,10,0">
@@ -103,11 +108,30 @@
             </DataGrid.Resources>
 
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Full Name" Binding="{Binding FullName}" Width="*" />
-                <DataGridTextColumn Header="Position" Binding="{Binding Position}" Width="*" />
-                <DataGridTextColumn Header="Contact No." Binding="{Binding ContactNumber}" Width="*" />
-                <DataGridTextColumn Header="User ID" Binding="{Binding UserAccount.Id}" Width="*" />
-                <DataGridTemplateColumn Header="Actions" Width="100">
+                <DataGridTextColumn Header="Full Name"   Binding="{Binding FullName}"        Width="*" />
+                <DataGridTextColumn Header="Position"    Binding="{Binding Position}"        Width="*" />
+                <DataGridTextColumn Header="Contact No." Binding="{Binding ContactNumber}"   Width="*" />
+                <DataGridTextColumn Header="User ID"     Binding="{Binding UserAccount.Id}"  Width="*" />
+
+                <!-- NEW: Status column (dot + text) -->
+                <DataGridTemplateColumn Header="Status" Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="10" Height="10"
+                                         Margin="0,0,6,0"
+                                         Fill="{Binding UserAccount.IsActive, Converter={StaticResource BoolToBrush}}"/>
+                                <TextBlock VerticalAlignment="Center"
+                                           Text="{Binding UserAccount.IsActive,
+                                                  Converter={StaticResource BoolToText},
+                                                  ConverterParameter=Active |Inactive |No Login}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- Actions -->
+                <DataGridTemplateColumn Header="Actions" Width="140">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -117,7 +141,19 @@
                                         BorderThickness="0"
                                         FontSize="16"
                                         Click="EditEmployee_Click"
-                                        Margin="0,0,5,0"/>
+                                        Margin="0,0,6,0"/>
+
+                                <!-- Optional inline toggle — uncomment if you add ToggleStatus_Click handler
+                                <Button Content="🔁"
+                                        ToolTip="Toggle Active / Inactive"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        FontSize="16"
+                                        Click="ToggleStatus_Click"
+                                        IsEnabled="{Binding HasLogin}"
+                                        Margin="0,0,6,0"/>
+                                -->
+
                                 <Button Content="🗑"
                                         ToolTip="Delete"
                                         Background="Transparent"

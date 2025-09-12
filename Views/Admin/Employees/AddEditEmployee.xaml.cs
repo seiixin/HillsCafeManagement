@@ -83,6 +83,14 @@ namespace HillsCafeManagement.Views.Admin.Employees
 
                 EmergencyContactTextBox.Text = employee.EmergencyContact ?? string.Empty;
                 DateHiredDatePicker.SelectedDate = employee.DateHired;
+
+                // =========================
+                // ACCOUNT STATUS (edit mode)
+                // Set based on linked user; default true if null
+                // =========================
+                var isActive = employee.UserAccount?.IsActive ?? true;
+                if (StatusComboBox != null)
+                    StatusComboBox.SelectedValue = isActive ? "1" : "0";
             }
             else
             {
@@ -90,6 +98,13 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 TitleText.Text = "Add New Employee";
                 SexComboBox.SelectedIndex = 0;
                 ShiftComboBox.SelectedIndex = 0; // default "Morning"
+
+                // =========================
+                // ACCOUNT STATUS (new)
+                // Default to Active
+                // =========================
+                if (StatusComboBox != null)
+                    StatusComboBox.SelectedValue = "1";
             }
 
             // Salary field starts read-only; toggle via manual override
@@ -198,6 +213,8 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 DateHired = DateHiredDatePicker.SelectedDate
             };
 
+            var isActiveSelected = GetSelectedIsActiveOrDefault(); // read from StatusComboBox
+
             if (_isEditMode && _editingEmployee != null)
             {
                 employee.Id = _editingEmployee.Id;
@@ -206,6 +223,9 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 var success = _employeeService.UpdateEmployee(employee);
                 if (success)
                 {
+                    // Apply account status AFTER saving main details
+                    TrySetActiveStatusByEmployeeId(employee.Id, isActiveSelected);
+
                     MessageBox.Show("Employee updated successfully.", "Success",
                         MessageBoxButton.OK, MessageBoxImage.Information);
                     OnEmployeeSaved?.Invoke();
@@ -223,6 +243,9 @@ namespace HillsCafeManagement.Views.Admin.Employees
                 var success = _employeeService.AddEmployee(employee);
                 if (success)
                 {
+                    // Apply account status AFTER we have employee.Id
+                    TrySetActiveStatusByEmployeeId(employee.Id, isActiveSelected);
+
                     MessageBox.Show("Employee added successfully.", "Success",
                         MessageBoxButton.OK, MessageBoxImage.Information);
                     OnEmployeeSaved?.Invoke();
@@ -374,6 +397,28 @@ namespace HillsCafeManagement.Views.Admin.Employees
                     ImagePreview.Source = null;
                     ImagePreview.Visibility = Visibility.Collapsed;
                 }
+            }
+        }
+
+        private bool GetSelectedIsActiveOrDefault()
+        {
+            // StatusComboBox.SelectedValue comes from ComboBoxItem.Tag ("1" or "0")
+            var sv = StatusComboBox?.SelectedValue?.ToString();
+            if (string.IsNullOrWhiteSpace(sv)) return true; // default Active
+            return sv == "1";
+        }
+
+        private void TrySetActiveStatusByEmployeeId(int employeeId, bool isActive)
+        {
+            try
+            {
+                // This will affect 0 rows if there is no linked user yet (which is fine).
+                _employeeService.SetUserActiveStatusByEmployeeId(employeeId, isActive);
+            }
+            catch (Exception ex)
+            {
+                // Non-fatal; keep the main save successful even if status update failed.
+                Console.Error.WriteLine("Failed to set user active status: " + ex.Message);
             }
         }
     }

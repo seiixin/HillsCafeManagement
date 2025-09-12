@@ -93,15 +93,12 @@
                          IsReadOnly="True"
                          ToolTip="Auto-filled from position. Enable Manual Override to edit." />
 
-                <!-- NEW: Work Schedule -->
+                <!-- Work Schedule -->
                 <TextBlock Text="Work Schedule:" FontWeight="Bold" />
                 <ComboBox x:Name="WorkScheduleComboBox"
                           Margin="0,0,0,10"
                           DisplayMemberPath="Label"
                           SelectedValuePath="Id" />
-                <!-- (Optional hint)
-                <TextBlock Text="Manage schedules in Attendance → Work Schedule Setup."
-                           Foreground="#777" FontSize="11" Margin="0,-6,0,10"/> -->
 
                 <!-- Shift -->
                 <TextBlock Text="Shift:" FontWeight="Bold" />
@@ -123,28 +120,26 @@
                 <TextBlock Text="Pagibig Number:" FontWeight="Bold" />
                 <TextBox x:Name="PagibigNumberTextBox" Margin="0,0,0,10" />
 
-                <!-- Image URL -->
                 <!-- Profile Photo -->
                 <TextBlock Text="Profile Photo:" FontWeight="Bold" />
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
                     <Button x:Name="UploadImageButton"
-            Content="Upload Photo"
-            Padding="8,4"
-            Click="UploadImage_Click"/>
+                            Content="Upload Photo"
+                            Padding="8,4"
+                            Click="UploadImage_Click"/>
                     <TextBlock x:Name="SelectedImageLabel"
-               Margin="10,0,0,0"
-               VerticalAlignment="Center"
-               Foreground="#555"
-               Text="No file selected"/>
+                               Margin="10,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="#555"
+                               Text="No file selected"/>
                 </StackPanel>
 
-                <!-- Optional preview (shown after selecting a file or when editing with existing photo) -->
+                <!-- Optional preview -->
                 <Image x:Name="ImagePreview"
-       Height="120"
-       Stretch="Uniform"
-       Margin="0,0,0,10"
-       Visibility="Collapsed"/>
-
+                       Height="120"
+                       Stretch="Uniform"
+                       Margin="0,0,0,10"
+                       Visibility="Collapsed"/>
 
                 <!-- Emergency Contact -->
                 <TextBlock Text="Emergency Contact:" FontWeight="Bold" />
@@ -152,7 +147,20 @@
 
                 <!-- Date Hired -->
                 <TextBlock Text="Date Hired:" FontWeight="Bold" />
-                <DatePicker x:Name="DateHiredDatePicker" Margin="0,0,0,15" SelectedDateFormat="Short" />
+                <DatePicker x:Name="DateHiredDatePicker" Margin="0,0,0,10" SelectedDateFormat="Short" />
+
+                <!-- ========================= -->
+                <!-- Account Status (AFTER details) -->
+                <!-- ========================= -->
+                <Separator Margin="0,5,0,10"/>
+                <TextBlock Text="Account Status:" FontWeight="Bold" />
+                <ComboBox x:Name="StatusComboBox"
+                          Margin="0,0,0,15"
+                          SelectedIndex="0"
+                          SelectedValuePath="Tag">
+                    <ComboBoxItem Content="Active (can log in)"    Tag="1"/>
+                    <ComboBoxItem Content="Inactive (cannot log in)" Tag="0"/>
+                </ComboBox>
 
                 <!-- Buttons -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
