@@ -33,31 +33,39 @@
                         <ColumnDefinition Width="187*"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <!-- 0 Title -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- 1 Manual toggle -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- 2 Manual inputs -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- 3 Actions -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- 4 Tip + feedback -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- 5 Filters -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- 6 Progress -->
-                        <RowDefinition Height="*"/>
-                        <!-- 7 Records table -->
+                        <RowDefinition Height="Auto"/>  <!-- 0 Title + Employee header -->
+                        <RowDefinition Height="Auto"/>  <!-- 1 Manual toggle -->
+                        <RowDefinition Height="Auto"/>  <!-- 2 Manual inputs -->
+                        <RowDefinition Height="Auto"/>  <!-- 3 Actions -->
+                        <RowDefinition Height="Auto"/>  <!-- 4 Tip + feedback -->
+                        <RowDefinition Height="Auto"/>  <!-- 5 Filters -->
+                        <RowDefinition Height="Auto"/>  <!-- 6 Progress -->
+                        <RowDefinition Height="*"/>     <!-- 7 Records table -->
                     </Grid.RowDefinitions>
 
-                    <!-- Title -->
-                    <TextBlock Grid.Row="0"
-                               Text="⏱ Clock In/Out Panel"
-                               FontSize="20"
-                               FontWeight="Bold"
-                               Margin="0 0 0 12"
-                               Foreground="White" Grid.ColumnSpan="2"/>
+                    <!-- Title + Employee header -->
+                    <Grid Grid.Row="0" Grid.ColumnSpan="2" Margin="0 0 0 12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="⏱ Clock In/Out Panel"
+                                   FontSize="20"
+                                   FontWeight="Bold"
+                                   Foreground="White"/>
+
+                        <!-- Employee (Name + User ID) -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" >
+                            <TextBlock Text="👤 " FontSize="16" Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding EmployeeDisplay}"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"
+                                       ToolTip="{Binding EmployeeDisplay}"/>
+                        </StackPanel>
+                    </Grid>
 
                     <!-- Manual toggle -->
                     <CheckBox Grid.Row="1"
@@ -154,6 +162,13 @@
                               HeadersVisibility="Column"
                               Margin="0 8 0 0" Grid.ColumnSpan="2">
                         <DataGrid.Columns>
+
+                            <!-- NEW: Employee column (read-only, shows Name + User ID) -->
+                            <DataGridTextColumn Header="Employee"
+                                                Binding="{Binding EmployeeDisplay}"
+                                                IsReadOnly="True"
+                                                Width="2*"/>
+
                             <DataGridTextColumn Header="Date"
                                                 Binding="{Binding Date, StringFormat={}{0:yyyy-MM-dd}}"
                                                 Width="*" />
@@ -163,15 +178,17 @@
                             <DataGridTextColumn Header="Time Out"
                                                 Binding="{Binding TimeOut, StringFormat={}{0:hh\\:mm\\:ss}, TargetNullValue=—}"
                                                 Width="*" />
+
+                            <!-- CHANGED: bind to computed DisplayStatus (No Record / Day Off / Present / etc.) -->
                             <DataGridTextColumn Header="Status"
-                                                Binding="{Binding Status}"
+                                                Binding="{Binding DisplayStatus}"
                                                 Width="*" />
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
             </TabItem>
 
-            <!-- LEAVE REQUESTS TAB -->
+            <!-- LEAVE REQUESTS TAB (unchanged) -->
             <TabItem Header="Leave Requests">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -252,12 +269,9 @@
                     <!-- RIGHT: Filter + List -->
                     <Grid Grid.Column="2">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <!-- Filters -->
-                            <RowDefinition Height="Auto"/>
-                            <!-- Progress -->
-                            <RowDefinition Height="*"/>
-                            <!-- Table -->
+                            <RowDefinition Height="Auto"/>  <!-- Filters -->
+                            <RowDefinition Height="Auto"/>  <!-- Progress -->
+                            <RowDefinition Height="*"/>     <!-- Table -->
                         </Grid.RowDefinitions>
 
                         <!-- Filters -->

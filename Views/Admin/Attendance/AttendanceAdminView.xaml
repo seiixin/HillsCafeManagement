@@ -310,9 +310,13 @@
                                                 Binding="{Binding Id}"
                                                 IsReadOnly="True"
                                                 Width="*"/>
-                            <DataGridTextColumn Header="Employee ID"
-                                                Binding="{Binding EmployeeId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                Width="*"/>
+
+                            <!-- NEW: Show Employee Name + ID (read-only) -->
+                            <DataGridTextColumn Header="Employee"
+                                                Binding="{Binding EmployeeDisplay}"
+                                                IsReadOnly="True"
+                                                Width="2*"/>
+
                             <DataGridTextColumn Header="Type"
                                                 Binding="{Binding LeaveType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 Width="*"/>
@@ -337,7 +341,10 @@
                                                     EditingElementStyle="{StaticResource CellComboEditing}"
                                                     Width="*"/>
 
-                            <!-- Hidden columns -->
+                            <!-- Hidden columns (keep for filters/logic) -->
+                            <DataGridTextColumn Header="Employee ID (Hidden)"
+                                                Binding="{Binding EmployeeId}"
+                                                Visibility="Collapsed"/>
                             <DataGridTextColumn Header="Approver UserId"
                                                 Binding="{Binding ApproverUserId}"
                                                 Visibility="Collapsed"/>

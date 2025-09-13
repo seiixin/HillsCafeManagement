@@ -1,4 +1,8 @@
-﻿using HillsCafeManagement.Models;
+﻿#nullable enable
+using System;
+using System.Collections.Generic;
+using System.Data;
+using HillsCafeManagement.Models;
 using MySql.Data.MySqlClient;
 
 namespace HillsCafeManagement.Services
@@ -28,7 +32,7 @@ namespace HillsCafeManagement.Services
     {
         private readonly string _cs = "server=localhost;user=root;password=;database=hillscafe_db;";
 
-        // ===== user -> employee resolver (FIX: read from users.employee_id) =====
+        // ===== user -> employee resolver (reads users.employee_id) =====
         private int GetEmployeeIdOrThrow(int userId)
         {
             using var conn = new MySqlConnection(_cs);
@@ -158,11 +162,20 @@ SET status = @status, updated_at = NOW()";
             return cmd.ExecuteNonQuery() > 0;
         }
 
+        // ======= JOIN employees and include e.full_name AS employee_name =======
+
         public LeaveRequestModel? GetById(int id)
         {
             using var conn = new MySqlConnection(_cs);
             conn.Open();
-            const string sql = "SELECT * FROM leave_requests WHERE id = @id LIMIT 1;";
+
+            const string sql = @"
+SELECT lr.*, e.full_name AS employee_name
+FROM leave_requests lr
+LEFT JOIN employees e ON e.id = lr.employee_id
+WHERE lr.id = @id
+LIMIT 1;";
+
             using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.Add("@id", MySqlDbType.Int32).Value = id;
 
@@ -175,11 +188,16 @@ SET status = @status, updated_at = NOW()";
             using var conn = new MySqlConnection(_cs);
             conn.Open();
 
-            var sql = @"SELECT * FROM leave_requests WHERE employee_id = @empId";
-            if (from.HasValue) sql += " AND date_to   >= @from";
-            if (to.HasValue) sql += " AND date_from <= @to";
-            if (status.HasValue) sql += " AND status = @status";
-            sql += " ORDER BY date_from DESC, id DESC";
+            var sql = @"
+SELECT lr.*, e.full_name AS employee_name
+FROM leave_requests lr
+LEFT JOIN employees e ON e.id = lr.employee_id
+WHERE lr.employee_id = @empId";
+
+            if (from.HasValue) sql += " AND lr.date_to   >= @from";
+            if (to.HasValue) sql += " AND lr.date_from <= @to";
+            if (status.HasValue) sql += " AND lr.status = @status";
+            sql += " ORDER BY lr.date_from DESC, lr.id DESC";
 
             using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.Add("@empId", MySqlDbType.Int32).Value = employeeId;
@@ -198,11 +216,16 @@ SET status = @status, updated_at = NOW()";
             using var conn = new MySqlConnection(_cs);
             conn.Open();
 
-            var sql = @"SELECT * FROM leave_requests WHERE 1=1";
-            if (from.HasValue) sql += " AND date_to   >= @from";
-            if (to.HasValue) sql += " AND date_from <= @to";
-            if (status.HasValue) sql += " AND status = @status";
-            sql += " ORDER BY date_from DESC, id DESC";
+            var sql = @"
+SELECT lr.*, e.full_name AS employee_name
+FROM leave_requests lr
+LEFT JOIN employees e ON e.id = lr.employee_id
+WHERE 1=1";
+
+            if (from.HasValue) sql += " AND lr.date_to   >= @from";
+            if (to.HasValue) sql += " AND lr.date_from <= @to";
+            if (status.HasValue) sql += " AND lr.status = @status";
+            sql += " ORDER BY lr.date_from DESC, lr.id DESC";
 
             using var cmd = new MySqlCommand(sql, conn);
             if (from.HasValue) cmd.Parameters.Add("@from", MySqlDbType.Date).Value = from.Value.Date;
@@ -246,20 +269,41 @@ LIMIT 1;";
             return r.Read();
         }
 
-        private static LeaveRequestModel Map(MySqlDataReader r) => new LeaveRequestModel
+        // ==================== mapper ====================
+        private static LeaveRequestModel Map(MySqlDataReader r)
         {
-            Id = r.GetInt32("id"),
-            EmployeeId = r.GetInt32("employee_id"),
-            LeaveType = Enum.TryParse<LeaveType>(r["leave_type"]?.ToString(), true, out var lt) ? lt : LeaveType.Other,
-            Reason = r.IsDBNull(r.GetOrdinal("reason")) ? null : r.GetString("reason"),
-            DateFrom = r.GetDateTime("date_from"),
-            DateTo = r.GetDateTime("date_to"),
-            HalfDay = Convert.ToInt32(r["half_day"]) == 1,
-            Status = Enum.TryParse<LeaveStatus>(r["status"]?.ToString(), true, out var ls) ? ls : LeaveStatus.Pending,
-            ApproverUserId = r.IsDBNull(r.GetOrdinal("approver_id")) ? (int?)null : r.GetInt32("approver_id"),
-            ApprovedAt = r.IsDBNull(r.GetOrdinal("approved_at")) ? (DateTime?)null : r.GetDateTime("approved_at"),
-            CreatedAt = r.IsDBNull(r.GetOrdinal("created_at")) ? DateTime.Now : r.GetDateTime("created_at"),
-            UpdatedAt = r.IsDBNull(r.GetOrdinal("updated_at")) ? (DateTime?)null : r.GetDateTime("updated_at")
-        };
+            var model = new LeaveRequestModel
+            {
+                Id = r.GetInt32("id"),
+                EmployeeId = r.GetInt32("employee_id"),
+                LeaveType = Enum.TryParse<LeaveType>(r["leave_type"]?.ToString(), true, out var lt) ? lt : LeaveType.Other,
+                Reason = r.IsDBNull(r.GetOrdinal("reason")) ? null : r.GetString("reason"),
+                DateFrom = r.GetDateTime("date_from"),
+                DateTo = r.GetDateTime("date_to"),
+                HalfDay = Convert.ToInt32(r["half_day"]) == 1,
+                Status = Enum.TryParse<LeaveStatus>(r["status"]?.ToString(), true, out var ls) ? ls : LeaveStatus.Pending,
+                ApproverUserId = HasColumn(r, "approver_id") && !r.IsDBNull(r.GetOrdinal("approver_id")) ? r.GetInt32("approver_id") : (int?)null,
+                ApprovedAt = HasColumn(r, "approved_at") && !r.IsDBNull(r.GetOrdinal("approved_at")) ? r.GetDateTime("approved_at") : (DateTime?)null,
+                CreatedAt = HasColumn(r, "created_at") && !r.IsDBNull(r.GetOrdinal("created_at")) ? r.GetDateTime("created_at") : DateTime.Now,
+                UpdatedAt = HasColumn(r, "updated_at") && !r.IsDBNull(r.GetOrdinal("updated_at")) ? r.GetDateTime("updated_at") : (DateTime?)null
+            };
+
+            // Map joined employee name if present
+            if (HasColumn(r, "employee_name") && !r.IsDBNull(r.GetOrdinal("employee_name")))
+                model.EmployeeName = r.GetString("employee_name");
+
+            return model;
+        }
+
+        private static bool HasColumn(IDataRecord r, string columnName)
+        {
+            // Safe check to allow mapper reuse with/without JOIN
+            for (int i = 0; i < r.FieldCount; i++)
+            {
+                if (string.Equals(r.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
     }
 }
