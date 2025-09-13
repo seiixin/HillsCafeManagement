@@ -29,6 +29,7 @@ using HillsCafeManagement.Views.Cashier.Tables;
 using HillsCafeManagement.Views.Employee.Attendance;
 using HillsCafeManagement.Views.Employee.Payslip;
 using HillsCafeManagement.Views.Employee.Profile;
+using HillsCafeManagement.Views.Employee.Payroll; // ✅ NEW (PayrollRecords)
 
 // alias the service types (same technique as your EmployeeProfileViewModel)
 using IEmployeeService = HillsCafeManagement.Services.IEmployeeService;
@@ -257,6 +258,7 @@ namespace HillsCafeManagement.ViewModels
                 default:
                     MenuItems.Add("Attendance");
                     MenuItems.Add("Payslip");
+                    MenuItems.Add("Payroll Records");   // ✅ NEW
                     MenuItems.Add("Profile");
                     MenuItems.Add("Logout");
                     break;
@@ -350,6 +352,10 @@ namespace HillsCafeManagement.ViewModels
                     if (IsEmployee) CurrentView = new PayslipView();
                     break;
 
+                case "payroll records":                 // ✅ NEW
+                    if (IsEmployee) CurrentView = new PayrollRecords(_employeeId);
+                    break;
+
                 case "profile":
                     if (IsEmployee) CurrentView = MakeEmployeeProfileViewOrFallback();
                     break;
@@ -411,10 +417,10 @@ namespace HillsCafeManagement.ViewModels
         private readonly Action<T?> _execute;
         private readonly Func<T?, bool>? _canExecute;
 
-        public RelayCommand(Action<T?> execute, Func<T?, bool>? canExecute = null)
+        public RelayCommand(Action<T?> execute, Func<T?, bool>? _canExecute = null)
         {
-            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-            _canExecute = canExecute;
+            this._execute = execute ?? throw new ArgumentNullException(nameof(execute));
+            this._canExecute = _canExecute;
         }
 
         public bool CanExecute(object? parameter) => _canExecute == null || _canExecute((T?)parameter);
