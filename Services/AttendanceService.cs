@@ -51,7 +51,7 @@ namespace HillsCafeManagement.Services
         }
 
         // =========================
-        // REQUIRED: Worked-days counter
+        // REQUIRED: Worked-days counter (single source of truth for payroll!)
         // =========================
 
         /// <summary>
@@ -60,7 +60,6 @@ namespace HillsCafeManagement.Services
         /// </summary>
         public int GetWorkedDaysCount(int employeeId, DateTime start, DateTime end)
         {
-            // normalize order and strip time
             var s = start.Date;
             var e = end.Date;
             if (e < s) (s, e) = (e, s);
@@ -93,11 +92,125 @@ namespace HillsCafeManagement.Services
             }
         }
 
-        /// <summary>
-        /// Alias for compatibility with existing callers.
-        /// </summary>
+        /// <summary>Back-compat alias.</summary>
         public int CountWorkedDays(int employeeId, DateTime start, DateTime end)
             => GetWorkedDaysCount(employeeId, start, end);
+
+        // =========================
+        // NEW: Scheduling helpers
+        // =========================
+
+        /// <summary>
+        /// Returns true if the employee is scheduled to work on the given calendar date,
+        /// based on work_schedule.days_mask. If the employee has no schedule, returns false.
+        /// </summary>
+        public bool IsScheduledWorkDay(int employeeId, DateTime date)
+        {
+            var mask = GetDaysMaskForEmployee(employeeId);
+            if (mask is null) return false;
+            int bit = DayOfWeekToBit(date.DayOfWeek);
+            return ((mask.Value & (1 << bit)) != 0);
+        }
+
+        /// <summary>
+        /// Returns a dense per-day calendar between [from..to] (inclusive) for the employee,
+        /// with computed display status per day:
+        ///   - "Present"  → BOTH time_in and time_out exist for that date
+        ///   - "No Record"→ scheduled workday but missing one/both logs
+        ///   - "Day Off"  → not a scheduled workday
+        /// TimeIn is earliest log for the day, TimeOut is latest log for the day.
+        /// </summary>
+        public List<AttendanceModel> GetDailyAttendanceCalendar(int employeeId, DateTime from, DateTime to)
+        {
+            var s = from.Date;
+            var e = to.Date;
+            if (e < s) (s, e) = (e, s);
+
+            // Preload all raw logs in the window
+            var perDay = new Dictionary<DateTime, (TimeSpan? firstIn, TimeSpan? lastOut)>();
+
+            try
+            {
+                using var conn = new MySqlConnection(_connectionString);
+                conn.Open();
+
+                const string sql = @"
+                    SELECT date, time_in, time_out
+                    FROM attendance
+                    WHERE employee_id = @empId
+                      AND date BETWEEN @from AND @to
+                    ORDER BY date ASC, time_in ASC, time_out ASC;";
+
+                using var cmd = new MySqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@empId", employeeId);
+                cmd.Parameters.Add("@from", MySqlDbType.Date).Value = s;
+                cmd.Parameters.Add("@to", MySqlDbType.Date).Value = e;
+
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    var d = r.GetDateTime("date").Date;
+                    var ti = r.IsDBNull(r.GetOrdinal("time_in")) ? (TimeSpan?)null : r.GetTimeSpan("time_in");
+                    var toT = r.IsDBNull(r.GetOrdinal("time_out")) ? (TimeSpan?)null : r.GetTimeSpan("time_out");
+
+                    if (!perDay.TryGetValue(d, out var agg))
+                        agg = (null, null);
+
+                    // earliest time_in
+                    if (ti.HasValue)
+                        agg.firstIn = (agg.firstIn.HasValue && agg.firstIn.Value <= ti.Value) ? agg.firstIn : ti;
+
+                    // latest time_out
+                    if (toT.HasValue)
+                        agg.lastOut = (agg.lastOut.HasValue && agg.lastOut.Value >= toT.Value) ? agg.lastOut : toT;
+
+                    perDay[d] = agg;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("GetDailyAttendanceCalendar load error: " + ex.Message);
+            }
+
+            // Resolve days_mask once
+            var mask = GetDaysMaskForEmployee(employeeId);
+
+            var outRows = new List<AttendanceModel>();
+            for (var d = s; d <= e; d = d.AddDays(1))
+            {
+                bool isWorkday = false;
+                if (mask is not null)
+                {
+                    int bit = DayOfWeekToBit(d.DayOfWeek);
+                    isWorkday = ((mask.Value & (1 << bit)) != 0);
+                }
+
+                perDay.TryGetValue(d, out var aggTimes);
+                var hasIn = aggTimes.firstIn.HasValue;
+                var hasOut = aggTimes.lastOut.HasValue;
+
+                string display;
+                if (!isWorkday)
+                    display = "Day Off";
+                else if (hasIn && hasOut)
+                    display = "Present";
+                else
+                    display = "No Record";
+
+                outRows.Add(new AttendanceModel
+                {
+                    Id = 0, // calendar row (not necessarily a DB row)
+                    EmployeeId = employeeId,
+                    Date = d,
+                    TimeIn = aggTimes.firstIn,
+                    TimeOut = aggTimes.lastOut,
+                    // Status here carries the DISPLAY status for the day grid
+                    Status = display
+                });
+            }
+
+            return outRows;
+        }
 
         // =========================
         // Auto-NOW versions (no timestamp passed)
@@ -106,6 +219,7 @@ namespace HillsCafeManagement.Services
         /// <summary>
         /// Inserts a new attendance row with CURDATE()/CURTIME() as time_in.
         /// Blocks if outside employee's assigned work schedule/shift.
+        /// NOTE: Explicitly marks status='Present' on clock in.
         /// </summary>
         public void ClockIn(int employeeId)
         {
@@ -158,6 +272,7 @@ namespace HillsCafeManagement.Services
         /// <summary>
         /// Inserts a new row using the provided timestamp.
         /// Blocks if outside employee's assigned work schedule/shift at that time.
+        /// NOTE: Explicitly marks status='Present' on clock in.
         /// </summary>
         public void ClockIn(int employeeId, DateTime timestamp)
         {
@@ -259,7 +374,11 @@ namespace HillsCafeManagement.Services
             cmd.Parameters.Add("@date", MySqlDbType.Date).Value = model.Date.Date;
             cmd.Parameters.Add("@timeIn", MySqlDbType.Time).Value = model.TimeIn is null ? DBNull.Value : model.TimeIn;
             cmd.Parameters.Add("@timeOut", MySqlDbType.Time).Value = model.TimeOut is null ? DBNull.Value : model.TimeOut;
-            cmd.Parameters.AddWithValue("@status", model.Status ?? "Present");
+            // Do NOT default to 'Present' here; leave null unless explicitly provided.
+            if (string.IsNullOrWhiteSpace(model.Status))
+                cmd.Parameters.Add("@status", MySqlDbType.VarChar).Value = DBNull.Value;
+            else
+                cmd.Parameters.Add("@status", MySqlDbType.VarChar).Value = model.Status;
             cmd.ExecuteNonQuery();
         }
 
@@ -283,7 +402,11 @@ namespace HillsCafeManagement.Services
             cmd.Parameters.Add("@date", MySqlDbType.Date).Value = model.Date.Date;
             cmd.Parameters.Add("@timeIn", MySqlDbType.Time).Value = model.TimeIn is null ? DBNull.Value : model.TimeIn;
             cmd.Parameters.Add("@timeOut", MySqlDbType.Time).Value = model.TimeOut is null ? DBNull.Value : model.TimeOut;
-            cmd.Parameters.AddWithValue("@status", model.Status ?? "Present");
+            // Do NOT default to 'Present' here; keep as-is or null.
+            if (string.IsNullOrWhiteSpace(model.Status))
+                cmd.Parameters.Add("@status", MySqlDbType.VarChar).Value = DBNull.Value;
+            else
+                cmd.Parameters.Add("@status", MySqlDbType.VarChar).Value = model.Status;
             cmd.ExecuteNonQuery();
         }
 
@@ -438,6 +561,34 @@ namespace HillsCafeManagement.Services
             }
         }
 
+        // =========================
+        // Private helpers
+        // =========================
+
+        private int? GetDaysMaskForEmployee(int employeeId)
+        {
+            try
+            {
+                using var conn = new MySqlConnection(_connectionString);
+                conn.Open();
+                const string sql = @"
+                    SELECT ws.days_mask
+                    FROM employees e
+                    LEFT JOIN work_schedule ws ON ws.id = e.work_schedule_id
+                    WHERE e.id = @eid
+                    LIMIT 1;";
+                using var cmd = new MySqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@eid", employeeId);
+                var res = cmd.ExecuteScalar();
+                if (res == null || res == DBNull.Value) return null;
+                return Convert.ToInt32(res);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private static void ThrowDetailed(
             string message,
             string diagnostics,
@@ -462,8 +613,7 @@ namespace HillsCafeManagement.Services
 
         private static bool IsWithinWindow(TimeSpan t, TimeSpan start, TimeSpan end)
         {
-            // If end <= start, window crosses midnight (e.g., 22:00..06:00)
-            if (end <= start)
+            if (end <= start) // crosses midnight
                 return t >= start || t < end;
             return t >= start && t <= end;
         }
@@ -488,7 +638,6 @@ namespace HillsCafeManagement.Services
         {
             var key = (raw ?? "").Trim().ToLowerInvariant();
 
-            // 1) Try DB override (table is optional; swallow if missing)
             try
             {
                 using var conn = new MySqlConnection(_connectionString);
@@ -512,17 +661,13 @@ namespace HillsCafeManagement.Services
                 // table may not exist; ignore and fallback
             }
 
-            // 2) Defaults / aliases
             if (key is "morning" or "am" or "day" or "day shift")
-                return (TimeSpan.FromHours(8), TimeSpan.FromHours(17), "default"); // 08:00–17:00
-
+                return (TimeSpan.FromHours(8), TimeSpan.FromHours(17), "default");
             if (key is "afternoon" or "pm" or "swing")
-                return (TimeSpan.FromHours(13), TimeSpan.FromHours(22), "default"); // 13:00–22:00
-
+                return (TimeSpan.FromHours(13), TimeSpan.FromHours(22), "default");
             if (key is "night" or "graveyard" or "evening" or "night shift")
-                return (TimeSpan.FromHours(22), TimeSpan.FromHours(6), "default"); // 22:00–06:00 (cross-midnight)
+                return (TimeSpan.FromHours(22), TimeSpan.FromHours(6), "default");
 
-            // 3) Final fallback
             return (TimeSpan.FromHours(8), TimeSpan.FromHours(17), "default(fallback)");
         }
     }

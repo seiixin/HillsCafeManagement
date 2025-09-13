@@ -1,4 +1,5 @@
-﻿#nullable enable
+﻿// Views/Admin/Payroll/AddEditPayroll.xaml.cs
+#nullable enable
 using HillsCafeManagement.Models;
 using HillsCafeManagement.Services;
 using System;
@@ -12,6 +13,7 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
     {
         private readonly PayrollService _payrollService = new();
         private readonly EmployeeService _employeeService = new();
+        private readonly AttendanceService _attendanceService = new(); // <-- use for worked days
 
         private readonly bool _isEditMode;
         private readonly PayrollModel? _editingPayroll;
@@ -90,9 +92,8 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
         // ========================
 
         /// <summary>
-        /// Reads current Employee/Start/End inputs, calls a service method that counts
-        /// valid shifts (rows having both time_in AND time_out) in range, and pushes
-        /// the result to DaysWorkedTextBox. If inputs are incomplete/invalid, shows 0.
+        /// Reads current Employee/Start/End inputs, then calls AttendanceService.GetWorkedDaysCount(...)
+        /// which counts dates with BOTH time_in AND time_out within the range.
         /// </summary>
         private void RecalculateDaysWorked()
         {
@@ -111,12 +112,9 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
 
             try
             {
-                // This method must implement: COUNT(*) (or COUNT DISTINCT date)
-                // FROM attendance WHERE employee_id=@id AND date BETWEEN @start AND @end
-                //   AND time_in IS NOT NULL AND time_out IS NOT NULL
-                // If you haven't added it yet, implement it in PayrollService (or AttendanceService)
-                // exactly as per your DB schema.
-                int days = _payrollService.CountWorkedDays(employeeId, start, end);
+                // ✅ Single source of truth:
+                // DISTINCT dates WHERE time_in IS NOT NULL AND time_out IS NOT NULL
+                int days = _attendanceService.GetWorkedDaysCount(employeeId, start, end);
                 DaysWorkedTextBox.Text = days.ToString();
             }
             catch (Exception ex)
@@ -177,11 +175,11 @@ namespace HillsCafeManagement.Views.Admin.Payrolls
                 return;
             }
 
-            // IMPORTANT: ignore any manual text and use a fresh calculation
+            // IMPORTANT: always compute from AttendanceService (ignore any stale UI value)
             int totalDaysWorked;
             try
             {
-                totalDaysWorked = _payrollService.CountWorkedDays(employeeId, startDate, endDate);
+                totalDaysWorked = _attendanceService.GetWorkedDaysCount(employeeId, startDate, endDate);
             }
             catch (Exception ex)
             {

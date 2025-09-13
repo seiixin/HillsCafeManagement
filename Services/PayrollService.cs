@@ -1,7 +1,7 @@
 ﻿// Services/PayrollService.cs
-// - Added CountWorkedDays(int employeeId, DateTime start, DateTime end)
-// - GenerateForPeriod(...) now uses the same rule: a worked day requires BOTH time_in AND time_out
-// - GrossSalary = ratePerDay * TotalDaysWorked (optional behavior enabled)
+// - Uses AttendanceService.GetWorkedDaysCount(...) as the single source of truth
+// - GenerateForPeriod(...) relies on BOTH time_in AND time_out to count a worked day
+// - GrossSalary = ratePerDay * TotalDaysWorked (optional behavior kept)
 
 using System;
 using System.Collections.Generic;
@@ -13,6 +13,7 @@ namespace HillsCafeManagement.Services
     public class PayrollService
     {
         private readonly string _connectionString;
+        private readonly AttendanceService _attendanceService;
         public string? LastError { get; private set; }
 
         public PayrollService(string? connectionString = null)
@@ -20,40 +21,24 @@ namespace HillsCafeManagement.Services
             _connectionString = string.IsNullOrWhiteSpace(connectionString)
                 ? "server=localhost;user=root;password=;database=hillscafe_db;"
                 : connectionString!;
+            _attendanceService = new AttendanceService(_connectionString);
         }
 
-        // ---------- Public helper: count worked days ----------
+        // ---------- Public helper (delegates to AttendanceService) ----------
         /// <summary>
-        /// Counts DISTINCT dates in the attendance table for the given employee within [start, end]
-        /// where BOTH time_in AND time_out are NOT NULL (i.e., a valid completed shift).
+        /// Counts DISTINCT dates with BOTH time_in AND time_out present within [start, end].
+        /// Delegates to AttendanceService.GetWorkedDaysCount(...).
         /// </summary>
         public int CountWorkedDays(int employeeId, DateTime start, DateTime end)
         {
             try
             {
-                using var conn = new MySqlConnection(_connectionString);
-                conn.Open();
-
-                const string sql = @"
-                    SELECT COUNT(DISTINCT a.date)
-                    FROM attendance a
-                    WHERE a.employee_id = @empId
-                      AND a.date BETWEEN @start AND @end
-                      AND a.time_in IS NOT NULL
-                      AND a.time_out IS NOT NULL;";
-
-                using var cmd = new MySqlCommand(sql, conn);
-                cmd.Parameters.AddWithValue("@empId", employeeId);
-                cmd.Parameters.AddWithValue("@start", start);
-                cmd.Parameters.AddWithValue("@end", end);
-
-                var obj = cmd.ExecuteScalar();
-                return (obj == null || obj == DBNull.Value) ? 0 : Convert.ToInt32(obj);
+                return _attendanceService.GetWorkedDaysCount(employeeId, start, end);
             }
             catch (Exception ex)
             {
                 LastError = ex.Message;
-                Console.Error.WriteLine("Error counting worked days: " + ex);
+                Console.Error.WriteLine("Error counting worked days via AttendanceService: " + ex);
                 return 0;
             }
         }
@@ -99,13 +84,12 @@ namespace HillsCafeManagement.Services
                     }
                 }
 
-                // Reuse the PositionSalaryService to fetch position-based rates
                 var posService = new PositionSalaryService(_connectionString);
 
                 foreach (var emp in employees)
                 {
-                    // NEW: days worked require BOTH time_in and time_out
-                    int daysWorked = CountWorkedDays(emp.Id, periodStart, periodEnd);
+                    // SINGLE SOURCE OF TRUTH: AttendanceService enforces both-in/out
+                    int daysWorked = _attendanceService.GetWorkedDaysCount(emp.Id, periodStart, periodEnd);
 
                     // Determine ratePerDay:
                     decimal ratePerDay = 0m;

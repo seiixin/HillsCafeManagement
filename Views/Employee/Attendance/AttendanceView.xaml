@@ -33,14 +33,22 @@
                         <ColumnDefinition Width="187*"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>  <!-- 0 Title + Employee header -->
-                        <RowDefinition Height="Auto"/>  <!-- 1 Manual toggle -->
-                        <RowDefinition Height="Auto"/>  <!-- 2 Manual inputs -->
-                        <RowDefinition Height="Auto"/>  <!-- 3 Actions -->
-                        <RowDefinition Height="Auto"/>  <!-- 4 Tip + feedback -->
-                        <RowDefinition Height="Auto"/>  <!-- 5 Filters -->
-                        <RowDefinition Height="Auto"/>  <!-- 6 Progress -->
-                        <RowDefinition Height="*"/>     <!-- 7 Records table -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 0 Title + Employee header -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 1 Manual toggle -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 2 Manual inputs -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 3 Actions -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 4 Tip + feedback -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 5 Filters -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 6 Progress -->
+                        <RowDefinition Height="*"/>
+                        <!-- 7 Records table -->
                     </Grid.RowDefinitions>
 
                     <!-- Title + Employee header -->
@@ -269,9 +277,12 @@
                     <!-- RIGHT: Filter + List -->
                     <Grid Grid.Column="2">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>  <!-- Filters -->
-                            <RowDefinition Height="Auto"/>  <!-- Progress -->
-                            <RowDefinition Height="*"/>     <!-- Table -->
+                            <RowDefinition Height="Auto"/>
+                            <!-- Filters -->
+                            <RowDefinition Height="Auto"/>
+                            <!-- Progress -->
+                            <RowDefinition Height="*"/>
+                            <!-- Table -->
                         </Grid.RowDefinitions>
 
                         <!-- Filters -->

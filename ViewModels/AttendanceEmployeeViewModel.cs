@@ -12,6 +12,15 @@ using HillsCafeManagement.Services;
 
 namespace HillsCafeManagement.ViewModels
 {
+    /// <summary>
+    /// Employee Attendance VM:
+    /// - Loads EmployeeName + UserId and exposes EmployeeDisplay: "Name (User #123)"
+    /// - Builds a per-day calendar between FilterFromDate..FilterToDate
+    ///   * "Present"  => only if BOTH TimeIn and TimeOut exist for that date
+    ///   * "No Record" => no logs but date is a scheduled workday
+    ///   * "Day Off"   => date is not in the assigned work schedule (days_mask)
+    /// - Days worked (payroll) still rely on complete pairs only.
+    /// </summary>
     public class AttendanceEmployeeViewModel : INotifyPropertyChanged
     {
         // ===== Services =====
@@ -26,6 +35,26 @@ namespace HillsCafeManagement.ViewModels
             get => _currentEmployeeId;
             private set { _currentEmployeeId = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
+
+        // ===== Employee header =====
+        private string _employeeName = string.Empty;
+        public string EmployeeName
+        {
+            get => _employeeName;
+            private set { _employeeName = value; OnPropertyChanged(); OnPropertyChanged(nameof(EmployeeDisplay)); }
+        }
+
+        private int? _userId;
+        public int? UserId
+        {
+            get => _userId;
+            private set { _userId = value; OnPropertyChanged(); OnPropertyChanged(nameof(EmployeeDisplay)); }
+        }
+
+        public string EmployeeDisplay =>
+            string.IsNullOrWhiteSpace(EmployeeName)
+                ? (UserId.HasValue ? $"(User #{UserId.Value})" : string.Empty)
+                : (UserId.HasValue ? $"{EmployeeName} (User #{UserId.Value})" : EmployeeName);
 
         // ===== Commands (Attendance) =====
         public ICommand ClockInCommand { get; private set; } = null!;
@@ -92,7 +121,8 @@ namespace HillsCafeManagement.ViewModels
             set { if (_manualTimeText != value) { _manualTimeText = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
         }
 
-        public ObservableCollection<AttendanceModel> Attendances { get; } = new();
+        // PER-DAY rows for UI (includes DisplayStatus + EmployeeDisplay)
+        public ObservableCollection<AttendanceDayRow> Attendances { get; } = new();
 
         private DateTime? _filterFromDate = DateTime.Today.AddDays(-30);
         public DateTime? FilterFromDate
@@ -248,8 +278,29 @@ namespace HillsCafeManagement.ViewModels
 
         private void KickOffInitialLoads()
         {
+            _ = LoadEmployeeHeaderAsync();
             _ = RefreshAttendanceAsync();
             _ = RefreshLeaveListAsync();
+        }
+
+        private async Task LoadEmployeeHeaderAsync()
+        {
+            try
+            {
+                if (CurrentEmployeeId is null) return;
+
+                // Fetch name + user id (via EmployeeService)
+                var empId = CurrentEmployeeId.Value;
+
+                // These methods are expected to be provided by EmployeeService.
+                // If they return null/empty, EmployeeDisplay will gracefully degrade.
+                EmployeeName = await Task.Run(() => _employeeService.GetEmployeeFullName(empId) ?? string.Empty);
+                UserId = await Task.Run(() => _employeeService.GetUserIdByEmployeeId(empId));
+            }
+            catch
+            {
+                // Non-fatal; UI can still function without header.
+            }
         }
 
         // =========================================================================================
@@ -353,13 +404,73 @@ namespace HillsCafeManagement.ViewModels
                 }
 
                 var empId = CurrentEmployeeId.Value;
-                var items = await Task.Run(() =>
-                    _attendanceService.GetAttendancesForEmployee(empId, FilterFromDate, FilterToDate));
 
+                // Get raw logs in range
+                var from = (FilterFromDate ?? DateTime.Today.AddDays(-30)).Date;
+                var to = (FilterToDate ?? DateTime.Today).Date;
+                if (to < from) (from, to) = (to, from);
+
+                var rawLogs = await Task.Run(() =>
+                    _attendanceService.GetAttendancesForEmployee(empId, from, to));
+
+                // Group logs per day
+                var byDate = rawLogs
+                    .GroupBy(a => a.Date.Date)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                // Obtain work schedule days_mask via EmployeeService (nullable => assume all days workdays)
+                int? daysMask = null;
+                try { daysMask = _employeeService.GetWorkScheduleDaysMask(empId); } catch { /* optional */ }
+
+                // Build calendar rows day-by-day
                 Attendances.Clear();
-                foreach (var it in items) Attendances.Add(it);
 
-                LastMessage = $"📋 Loaded {Attendances.Count} attendance record(s).";
+                for (var d = from; d <= to; d = d.AddDays(1))
+                {
+                    var isWorkday = IsScheduledWorkday(daysMask, d);
+                    var hasLogs = byDate.TryGetValue(d, out var logsForDay);
+
+                    TimeSpan? timeIn = null;
+                    TimeSpan? timeOut = null;
+                    string displayStatus;
+
+                    if (hasLogs && logsForDay != null)
+                    {
+                        // Consider ONLY complete pairs (both in & out) for "Present"
+                        var complete = logsForDay
+                            .Where(x => x.TimeIn.HasValue && x.TimeOut.HasValue)
+                            .ToList();
+
+                        if (complete.Any())
+                        {
+                            timeIn = complete.Min(x => x.TimeIn!.Value);
+                            timeOut = complete.Max(x => x.TimeOut!.Value);
+                            displayStatus = "Present";
+                        }
+                        else
+                        {
+                            // Incomplete / no valid pair -> treat as missing record on a workday
+                            displayStatus = isWorkday ? "No Record" : "Day Off";
+                        }
+                    }
+                    else
+                    {
+                        displayStatus = isWorkday ? "No Record" : "Day Off";
+                    }
+
+                    Attendances.Add(new AttendanceDayRow
+                    {
+                        EmployeeDisplay = EmployeeDisplay,
+                        Date = d,
+                        TimeIn = timeIn,
+                        TimeOut = timeOut,
+                        DisplayStatus = displayStatus
+                    });
+                }
+
+                // Payroll-friendly worked days (complete pairs only)
+                var workedDays = await Task.Run(() => _attendanceService.GetWorkedDaysCount(empId, from, to));
+                LastMessage = $"📋 Loaded {Attendances.Count} day(s). ✅ Worked days (complete pairs only): {workedDays}.";
             }
             catch (Exception ex)
             {
@@ -561,8 +672,39 @@ namespace HillsCafeManagement.ViewModels
             try { await Task.Delay(ms); LastMessage = string.Empty; } catch { }
         }
 
+        private static int DayOfWeekToBit(DayOfWeek d) => d switch
+        {
+            DayOfWeek.Monday => 0,
+            DayOfWeek.Tuesday => 1,
+            DayOfWeek.Wednesday => 2,
+            DayOfWeek.Thursday => 3,
+            DayOfWeek.Friday => 4,
+            DayOfWeek.Saturday => 5,
+            DayOfWeek.Sunday => 6,
+            _ => 0
+        };
+
+        private static bool IsScheduledWorkday(int? daysMask, DateTime date)
+        {
+            if (!daysMask.HasValue) return true; // fallback: assume workday if schedule not available
+            var bit = DayOfWeekToBit(date.DayOfWeek);
+            return (daysMask.Value & (1 << bit)) != 0;
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] string? prop = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
+    }
+
+    /// <summary>
+    /// UI row used by Attendance grid (per day).
+    /// </summary>
+    public sealed class AttendanceDayRow
+    {
+        public string? EmployeeDisplay { get; set; }
+        public DateTime Date { get; set; }
+        public TimeSpan? TimeIn { get; set; }
+        public TimeSpan? TimeOut { get; set; }
+        public string DisplayStatus { get; set; } = "No Record";
     }
 }

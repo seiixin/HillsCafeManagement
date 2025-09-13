@@ -11,7 +11,7 @@ namespace HillsCafeManagement.Models
         public int Id { get; set; }
 
         // ---- Identity & Contact ----
-        public string? FullName { get; set; } = string.Empty;
+        public string? FullName { get; set; } = string.Empty;   // ✅ Ensure FullName exists
         public int? Age { get; set; }
         public string? Sex { get; set; } = string.Empty;
         public string? Address { get; set; } = string.Empty;
@@ -45,6 +45,11 @@ namespace HillsCafeManagement.Models
         public UserModel? UserAccount { get; set; }
 
         /// <summary>
+        /// Convenience mirror of the linked user's id (null if no linked user).
+        /// </summary>
+        public int? UserId => UserAccount?.Id;                  // ✅ Ensure UserId is available
+
+        /// <summary>
         /// Convenience mirror of the linked user's login status:
         /// true = Active (can log in), false = Inactive (cannot log in), null = no linked user.
         /// </summary>
@@ -61,5 +66,18 @@ namespace HillsCafeManagement.Models
         /// Whether this employee has a linked login record.
         /// </summary>
         public bool HasLogin => UserAccount is not null;
+
+        /// <summary>
+        /// Read-only convenience for UIs that want "Name (User #123)".
+        /// Falls back gracefully if parts are missing.
+        /// </summary>
+        public string EmployeeDisplay
+        {
+            get
+            {
+                var name = string.IsNullOrWhiteSpace(FullName) ? "Unknown" : FullName;
+                return UserId.HasValue ? $"{name} (User #{UserId})" : $"{name} (No Login)";
+            }
+        }
     }
 }

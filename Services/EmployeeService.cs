@@ -16,8 +16,13 @@ namespace HillsCafeManagement.Services
         bool AddEmployee(EmployeeModel employee);
         bool DeleteEmployee(int employeeId);
 
-        // map logged-in user (users.id) -> employees.id
+        // Existing: map logged-in user (users.id) -> employees.id
         int? GetEmployeeIdByUserId(int userId);
+
+        // NEW: header & schedule helpers (employeeId → info)
+        string? GetEmployeeFullName(int employeeId);
+        int? GetUserIdByEmployeeId(int employeeId);
+        int? GetWorkScheduleDaysMask(int employeeId);
 
         // NEW: status controls
         bool SetUserActiveStatusByEmployeeId(int employeeId, bool isActive);
@@ -306,7 +311,7 @@ namespace HillsCafeManagement.Services
         }
 
         // =====================================================================
-        // USER → EMPLOYEE MAPPING
+        // USER ↔ EMPLOYEE MAPPING
         // =====================================================================
 
         public int? GetEmployeeIdByUserId(int userId)
@@ -323,6 +328,59 @@ namespace HillsCafeManagement.Services
 
             var empId = Convert.ToInt32(res);
             return empId == 0 ? (int?)null : empId;
+        }
+
+        // NEW: employeeId → userId
+        public int? GetUserIdByEmployeeId(int employeeId)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            const string sql = "SELECT id FROM users WHERE employee_id = @eid LIMIT 1;";
+            using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@eid", employeeId);
+
+            var res = cmd.ExecuteScalar();
+            if (res == null || res == DBNull.Value) return null;
+
+            var uid = Convert.ToInt32(res);
+            return uid == 0 ? (int?)null : uid;
+        }
+
+        // NEW: employee full name
+        public string? GetEmployeeFullName(int employeeId)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            const string sql = "SELECT full_name FROM employees WHERE id = @id LIMIT 1;";
+            using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@id", employeeId);
+
+            var res = cmd.ExecuteScalar();
+            return res == null || res == DBNull.Value ? null : res.ToString();
+        }
+
+        // NEW: days_mask of assigned work schedule (nullable if none)
+        public int? GetWorkScheduleDaysMask(int employeeId)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            const string sql = @"
+                SELECT ws.days_mask
+                FROM employees e
+                LEFT JOIN work_schedule ws ON ws.id = e.work_schedule_id
+                WHERE e.id = @eid
+                LIMIT 1;";
+            using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@eid", employeeId);
+
+            var res = cmd.ExecuteScalar();
+            if (res == null || res == DBNull.Value) return null;
+
+            try { return Convert.ToInt32(res); }
+            catch { return null; }
         }
 
         // =====================================================================
@@ -406,7 +464,6 @@ namespace HillsCafeManagement.Services
         private static bool ReadTinyIntBool(IDataRecord r, string col, bool defaultValue = false)
         {
             if (!HasColumn(r, col) || r.IsDBNull(r.GetOrdinal(col))) return defaultValue;
-            // MySQL TINYINT(1) comes as sbyte/int/long depending on provider; normalize to bool.
             try { return Convert.ToInt32(r[col]) == 1; }
             catch { return defaultValue; }
         }
